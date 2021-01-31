@@ -22,7 +22,17 @@ def sample_configurations_data(data_folder):
             'has_placeholders': True
         },
         {
-            'filename': configurations_folder / 'single_yaml' / 'main.yaml',
+            'filename': configurations_folder / 'single_yaml' / 'main_noplaceholders.yaml',
             'has_placeholders': False
+        },
+        {
+            'filename': configurations_folder / 'single_yaml' / 'main.yaml',
+            'has_placeholders': True,
+            'to_replace': {  # If to_replace is set, it has to contain all placeholders!
+                'one': 1,
+                'four': 33,
+                'three.t31': True,
+                'three.name': 'hello'
+            }
         }
     ]

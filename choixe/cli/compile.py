@@ -19,8 +19,11 @@ def compile(configuration_file: str, output_file: str, check: bool, options: Seq
         import sys
         sys.exit(1)
 
+    placeholders = cfg.available_placeholders()
     for key, value in options:
-        cfg.deep_set(key, value)
+        if key in placeholders:
+            placeholder = placeholders[key]
+            cfg.deep_set(key, placeholder.cast(value))
 
     if check:
         cfg.check_available_placeholders(close_app=True)

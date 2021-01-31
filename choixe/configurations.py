@@ -1,3 +1,5 @@
+from choixe.placeholders import Placeholder
+from choixe.directives import DirectiveAT, DirectiveFactory
 from enum import Enum, auto
 from box.from_file import converters
 from box import box_from_file, Box, BoxList
@@ -7,103 +9,6 @@ from typing import Any, Dict, Sequence, Tuple, Union
 from schema import Schema
 from pathlib import Path
 import re
-
-
-class XPlaceholderType(Enum):
-    INT = auto()
-    STR = auto()
-    FLOAT = auto()
-    BOOL = auto()
-    PATH = auto()
-    OPTIONS = auto()
-    DATE = auto()
-
-    # @classmethod
-    # def validate(cls, value: any, tp: str):
-    #     tp = cls.get_type(tp)
-    #     if tp is not None:
-    #         tp: XPlaceholderType
-    #         if tp == XPlaceholderType.INT:
-    #             return isinstance(value, int)
-    #         elif tp == XPlaceholderType.FLOAT:
-    #             return isinstance(value, float)
-    #         elif tp == XPlaceholderType.STR:
-    #             return isinstance(value, str)
-    #         elif tp == XPlaceholderType.BOOL:
-    #             return isinstance(value, bool)
-
-    #     return False
-
-    @classmethod
-    def get_type(cls, value: str) -> Union['XPlaceholderType', None]:
-        c = [x for x in value.split('(') if len(x) > 0]
-        if len(c) > 0:
-            v = c[0]
-            return XPlaceholderType[v.upper()]
-        return None
-
-    @classmethod
-    def get_type_as_string(cls, value: str) -> str:
-        tp = cls.get_type(value)
-        if isinstance(tp, XPlaceholderType):
-            return tp.name
-        return 'None'
-
-
-class XPlaceholder(object):
-
-    def __init__(self, value: any, qualifier: str):
-        self.value = value
-        self._qualifier = qualifier
-        self.chunks = self.get_placeholder_chunks()
-
-    def is_valid(self):
-        if isinstance(self.value, str):
-            return self.value.startswith(self._qualifier)
-        return False
-
-    @property
-    def base(self):
-        if self.is_valid():
-            return self.chunks[0]
-        return None
-
-    @property
-    def base_with_qualifier(self):
-        if self.is_valid():
-            return f'{self._qualifier}{self.chunks[0]}'
-        return None
-
-    @property
-    def plain_type(self):
-        if self.is_valid():
-            if len(self.chunks) > 1:
-                return XPlaceholderType.get_type_as_string(f'{self.chunks[1]}')
-        return XPlaceholderType.get_type_as_string('')
-
-    @property
-    def type(self):
-        if self.is_valid():
-            if len(self.chunks) > 1:
-                return XPlaceholderType.get_type(f'{self.chunks[1]}')
-        return None
-
-    def get_placeholder_chunks(self) -> Union[Sequence[str], None]:
-        """ Retrieves placeholder chunks if any. E.g. $name$options(1,2,3)
-        will return (name, options(1,2,3))
-
-        :return: None if value is not a placeholder, otherwise a Sequence of strings
-        :rtype: Union[Sequence[str], None]
-        """
-        if self.is_valid():
-            chunks = [c for c in re.split(f'\\{self._qualifier}', self.value) if len(c) > 0]
-            return chunks
-        return []
-
-    def __eq__(self, p: 'XPlaceholder') -> bool:
-        if self.is_valid() and p.is_valid():
-            return self.base == p.base
-        return False
 
 
 class XConfig(Box):
@@ -219,10 +124,12 @@ class XConfig(Box):
         :return: TRUE if value is a placeholder
         :rtype: bool
         """
-        if isinstance(value, str):
-            return value.startswith(self.REPLACE_QUALIFIER)
-        else:
+        if not isinstance(value, str):
             return False
+        placeholder = Placeholder.from_string(value)
+        if placeholder:
+            return placeholder.is_valid()
+        return False
 
     def deep_set(self, full_key: str, value: any):
         """ Sets value based on full path key (dot notation like 'a.b.0.d')
@@ -235,58 +142,56 @@ class XConfig(Box):
 
         pydash.set_(self, full_key, value)
 
-    def replace(self, old_value: str, new_value: str):
-        """ Replaces target value with custom new value
+    def replace_variable(self, old_value: str, new_value: str):
+        """ Replaces target variables with custom new value
         :param old_value: value to replace
         :type old_value: str
         :param new_value: new key value
         :type new_value: str
         """
-        old_placeholder = XPlaceholder(old_value, self.REPLACE_QUALIFIER)
-        if old_placeholder.is_valid():
-            chunks = self.chunks(discard_private_qualifiers=True)
-            for k, v in chunks:
-                p = XPlaceholder(v, qualifier=self.REPLACE_QUALIFIER)
-                if p.is_valid():
-                    if old_placeholder == p:
-                        # chunks = self.get_placeholder_chunks(v)
-                        # if chunks is not None:
-                        #     if f'{self.REPLACE_QUALIFIER}{chunks[0]}' == old_value:
-                        pydash.set_(self, k, new_value)
+        chunks = self.chunks(discard_private_qualifiers=True)
+        for k, v in chunks:
+            p = Placeholder.from_string(v)
+            if p is not None and p.is_valid():
+                if old_value == p.name:
+                    pydash.set_(self, k, p.cast(new_value))
 
-    def replace_map(self, m: dict):
-        """ Replace target old values with new values represented as dict
+    def replace_variables_map(self, m: dict):
+        """ Replace target old variables with new values represented as dict
         :param m: dict of key/value = old/new
         :type m: dict
         """
 
         for old_v, new_v in m.items():
-            self.replace(old_v, new_v)
+            self.replace_variable(old_v, new_v)
 
     def deep_parse(self):
         """ Deep visit of dictionary replacing filename values with a new XConfig object recusively
         """
         chunks = self.chunks()
         for chunk_name, value in chunks:
-            if self._could_be_path(value):
-                n_references = value.count(self.REFERENCE_QUALIFIER)
-                p = Path(value.replace(self.REFERENCE_QUALIFIER, ''))
-                if self._filename is not None and not p.is_absolute():
-                    p = self._filename.parent / p
+            if not isinstance(value, str):
+                continue
+            directive = DirectiveFactory.build_directive_from_string(value)
+            if directive is not None:
+                if directive.valid and directive.label in ['import', 'import_root']:
 
-                if p.exists():
-                    sub_cfg = XConfig(filename=p)
-                    # if sub_cfg.root_content is not None:
-                    #     pydash.set_(self, chunk_name, sub_cfg.root_content)
-                    # else:
-                    if n_references == 2:
-                        pydash.set_(self, chunk_name, sub_cfg.root_content)
-                    elif n_references == 1:
-                        pydash.set_(self, chunk_name, sub_cfg)
+                    n_references = value.count(self.REFERENCE_QUALIFIER)
+
+                    p = Path(directive.args[0] if len(directive.args) > 0 else '')  # Path(value.replace(self.REFERENCE_QUALIFIER, ''))
+                    if self._filename is not None and not p.is_absolute():
+                        p = self._filename.parent / p
+
+                    if p.exists():
+                        sub_cfg = XConfig(filename=p)
+                        if directive.label == 'import_root':
+                            pydash.set_(self, chunk_name, sub_cfg.root_content)
+                        elif directive.label == 'import':
+                            pydash.set_(self, chunk_name, sub_cfg)
+                        else:
+                            raise NotImplementedError(f"Number of {self.REFERENCE_QUALIFIER} is wrong!")
                     else:
-                        raise NotImplementedError(f"Number of {self.REFERENCE_QUALIFIER} is wrong!")
-                else:
-                    raise OSError(f'File {p} not found!')
+                        raise OSError(f'File {p} not found!')
 
     def _could_be_path(self, p: str) -> bool:
         """ Check if a string could be a path. It's not a robust test outside XConfig!
@@ -321,17 +226,17 @@ class XConfig(Box):
                     pydash.unset(out_dict, chunk_name)
         return out_dict
 
-    def available_placeholders(self) -> Sequence[Tuple[str, str]]:
+    def available_placeholders(self) -> Dict[str, Placeholder]:
         """ Retrieves the available placeholders list
         :return: list of found (str,str) pairs
         :rtype: Tuple[str,str]
         """
 
         chunks = self.chunks(discard_private_qualifiers=True)
-        placeholders = []
+        placeholders = {}
         for k, v in chunks:
             if self.is_a_placeholder(v):
-                placeholders.append((k, XPlaceholder(v, qualifier=self.REPLACE_QUALIFIER)))
+                placeholders[k] = Placeholder.from_string(v)
         return placeholders
 
     def check_available_placeholders(self, close_app: bool = False) -> bool:
@@ -350,16 +255,16 @@ class XConfig(Box):
 
             console = Console()
             table = Table(show_header=True, header_style='bold magenta')
-            table.add_column("Name", style="dim")
-            table.add_column("Placeholder")
+            table.add_column("Placeholder", style="dim")
+            table.add_column("Name")
             table.add_column("Type")
 
             header = "*** Incomplete Configuration, Placeholders found! ***"
             rich.print(Markdown(f"# {header}"))
 
-            for k, p in placeholders:
+            for k, p in placeholders.items():
                 if p.is_valid():
-                    table.add_row(k, p.base_with_qualifier, p.plain_type)
+                    table.add_row(k, p.name, p.plain_type)
 
             console.print(table)
 
