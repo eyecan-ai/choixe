@@ -1,0 +1,17 @@
+external: first.external.yaml@
+f1: $v_2$str
+f2: 2.22
+f3:
+- 3
+- 3
+- 3
+- 3
+- 3
+- 3
+ops:
+  o1: $v_4$options("a","b","c")
+  o2: $v_5$path
+  o3: $v_6$date
+  o4: $v_7
+  o5: $v_8
+  o6: $v_9

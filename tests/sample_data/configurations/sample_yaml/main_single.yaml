@@ -1,0 +1,53 @@
+first:
+  external:
+    ext:
+    - - -1.9491872118609295
+      - -0.34564920485390616
+      - -1.8047488247999999
+    - - -1.6002857547151543
+      - 0.03226522306802604
+      - -1.19900984266209
+    ext_name: $v_3$bool
+  f1: $v_2$str
+  f2: 2.22
+  f3:
+  - 3
+  - 3
+  - 3
+  - 3
+  - 3
+  - 3
+  ops:
+    o1: $v_4$options("a","b","c")
+    o2: $v_5$path
+    o3: $v_6$date
+    o4: $v_7
+    o5: $v_8
+    o6: $v_9
+one: $v_0$int
+three:
+  '2.1':
+  - false
+  - false
+  '3.1': true
+  name:
+    name_1: $v_1$float
+    name_2: 2
+    name_3:
+      this_is_A_dict:
+        a:
+          f: true
+          s: false
+      this_is_a_list:
+      - 3.3
+      - 3.3
+two:
+- - -48
+  - -5
+  - -20
+- - 12
+  - 20
+  - 23
+- - -20
+  - -14
+  - 11

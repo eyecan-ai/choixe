@@ -1,0 +1,18 @@
+first: 'first'
+one: 1
+three:
+  '2.1':
+  - false
+  - false
+  '3.1': true
+  name: 'subname'
+two:
+- - -48
+  - -5
+  - -20
+- - 12
+  - 20
+  - 23
+- - -20
+  - -14
+  - 11
