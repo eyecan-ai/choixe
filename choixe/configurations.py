@@ -1,3 +1,4 @@
+from choixe.importers import Importer, ImporterType
 from choixe.placeholders import Placeholder
 from choixe.directives import DirectiveAT, DirectiveFactory
 from enum import Enum, auto
@@ -172,21 +173,21 @@ class XConfig(Box):
         for chunk_name, value in chunks:
             if not isinstance(value, str):
                 continue
-            directive = DirectiveFactory.build_directive_from_string(value)
-            if directive is not None:
-                if directive.valid and directive.label in ['import', 'import_root']:
+            importer = Importer.from_string(value)
+            if importer is not None:
+                if importer.is_valid():
 
                     n_references = value.count(self.REFERENCE_QUALIFIER)
 
-                    p = Path(directive.args[0] if len(directive.args) > 0 else '')  # Path(value.replace(self.REFERENCE_QUALIFIER, ''))
+                    p = Path(importer.path)  # Path(value.replace(self.REFERENCE_QUALIFIER, ''))
                     if self._filename is not None and not p.is_absolute():
                         p = self._filename.parent / p
 
                     if p.exists():
                         sub_cfg = XConfig(filename=p)
-                        if directive.label == 'import_root':
+                        if importer.type == ImporterType.IMPORT_ROOT:
                             pydash.set_(self, chunk_name, sub_cfg.root_content)
-                        elif directive.label == 'import':
+                        elif importer.type == ImporterType.IMPORT:
                             pydash.set_(self, chunk_name, sub_cfg)
                         else:
                             raise NotImplementedError(f"Number of {self.REFERENCE_QUALIFIER} is wrong!")

@@ -89,3 +89,13 @@ class DirectiveFactory(object):
             if directive.valid:
                 return directive
         return None
+
+
+class DirectiveConsumer(object):
+
+    def __init__(self, directive: Directive) -> None:
+        self._directive = directive
+
+    @property
+    def directive(self):
+        return self._directive

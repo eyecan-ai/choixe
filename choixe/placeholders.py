@@ -2,7 +2,7 @@
 
 from enum import Enum, auto
 from typing import Union
-from choixe.directives import Directive, DirectiveFactory
+from choixe.directives import Directive, DirectiveConsumer, DirectiveFactory
 from pathlib import Path
 
 
@@ -66,10 +66,10 @@ class PlaceholderType(Enum):
             raise NotImplementedError(f'No cast for type [{tp}] on [{value}]')
 
 
-class Placeholder(object):
+class Placeholder(DirectiveConsumer):
 
     def __init__(self, directive: Directive):
-        self._directive = directive
+        super().__init__(directive=directive)
 
     def is_valid(self):
         if self._directive.valid:
