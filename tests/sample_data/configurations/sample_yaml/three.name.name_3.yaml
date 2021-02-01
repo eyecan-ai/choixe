@@ -1,4 +1,4 @@
-this_is_A_dict: three.name.name_3.this_is_A_dict.yaml@
+this_is_A_dict: '@import(three.name.name_3.this_is_A_dict.yaml)'
 this_is_a_list:
 - 3.3
 - 3.3

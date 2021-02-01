@@ -1,3 +1,5 @@
+from choixe.directives import DirectiveAT
+from choixe.placeholders import Placeholder
 from typing import Union
 import copy
 from box.box_list import BoxList
@@ -9,7 +11,7 @@ from schema import Schema, Or, Regex, SchemaMissingKeyError
 import pydash
 from pathlib import Path
 import pytest
-from choixe.configurations import XConfig, XPlaceholder
+from choixe.configurations import XConfig
 
 
 @pytest.fixture(scope="function")
@@ -45,11 +47,11 @@ def simple_data():
     return sample_dict, schema, [], to_be_raplaced_keys
 
 
-def generate_placeholder(name: str, tp: str = None, qualifier: str = XConfig.REPLACE_QUALIFIER):
+def generate_placeholder(name: str, tp: str = None):
     if tp is not None:
         if len(tp) > 0:
-            return f'{qualifier}{name}{qualifier}{tp}'
-    return f'{qualifier}{name}'
+            return DirectiveAT.generate_directive_string(tp, [name])
+    return DirectiveAT.generate_directive_string('str', [name])
 
 
 def complex_data():
@@ -60,7 +62,7 @@ def complex_data():
         generate_placeholder('v_1', 'float'),
         generate_placeholder('v_2', 'str'),
         generate_placeholder('v_3', 'bool'),
-        generate_placeholder('v_4', 'options("a","b","c")'),
+        generate_placeholder('v_4'),
         generate_placeholder('v_5', 'path'),
         generate_placeholder('v_6', 'date'),
         generate_placeholder('v_7'),
@@ -78,7 +80,7 @@ def complex_data():
         'one': placeholders[0],
         'two': np.random.randint(-50, 50, (3, 3)).tolist(),
         'three': {
-            '3.1': True,
+            '3.1': 'TrueValue',
             '2.1': [False, False],
             'name': {
                 'name_1': placeholders[1],
@@ -115,7 +117,7 @@ def complex_data():
             'one': Or(int, str),
             'two': list,
             'three': {
-                '3.1': bool,
+                '3.1': str,
                 '2.1': [bool],
                 'name': dict
             },
@@ -168,10 +170,10 @@ class TestXConfig(object):
 
         subtitutions_values = {}
         for k in to_be_raplaced_keys:
-            random_name = k + f".{cfg_extension}{XConfig.REFERENCE_QUALIFIER}"
+            random_name = k + f".{cfg_extension}"  # {XConfig.REFERENCE_QUALIFIER}"
+            random_name = DirectiveAT.generate_directive_string('import', [random_name])
             subtitutions_values[random_name] = pydash.get(volatile_dict, k)
 
-            subtitutions_values[random_name]
             pydash.set_(volatile_dict, k, random_name)
 
         output_cfg_filename = generic_temp_folder / f'out_config.{cfg_extension}'
@@ -180,8 +182,12 @@ class TestXConfig(object):
         subtitutions_values[str(output_cfg_filename)] = volatile_dict
 
         saved_cfgs = []
-        for output_filename, d in subtitutions_values.items():
-            output_filename = generic_temp_folder / output_filename.replace(f'{XConfig.REFERENCE_QUALIFIER}', '')
+        for directive_value, d in subtitutions_values.items():
+            directive = DirectiveAT(value=directive_value)
+            if directive.valid:
+                output_filename = generic_temp_folder / directive.args[0]
+            else:
+                output_filename = generic_temp_folder / directive_value
             store_cfg(output_filename, d)
             saved_cfgs.append(output_filename)
 
@@ -212,10 +218,11 @@ class TestXConfig(object):
 
         subtitutions_values = {}
         for k in to_be_raplaced_keys:
-            random_name = k + f".{cfg_extension}{XConfig.REFERENCE_QUALIFIER}{XConfig.REFERENCE_QUALIFIER}"
+            random_name = k + f".{cfg_extension}"  # {XConfig.REFERENCE_QUALIFIER}"
+            random_name = DirectiveAT.generate_directive_string('import_root', [random_name])
+            # random_name = k + f".{cfg_extension}{XConfig.REFERENCE_QUALIFIER}{XConfig.REFERENCE_QUALIFIER}"
             subtitutions_values[random_name] = pydash.get(volatile_dict, k)
 
-            subtitutions_values[random_name]
             pydash.set_(volatile_dict, k, random_name)
 
         output_cfg_filename = generic_temp_folder / f'out_config.{cfg_extension}'
@@ -223,8 +230,13 @@ class TestXConfig(object):
         subtitutions_values[str(output_cfg_filename)] = volatile_dict
 
         saved_cfgs = []
-        for output_filename, d in subtitutions_values.items():
-            output_filename = generic_temp_folder / output_filename.replace(f'{XConfig.REFERENCE_QUALIFIER}', '')
+        for directive_value, d in subtitutions_values.items():
+            directive = DirectiveAT(value=directive_value)
+            if directive.valid:
+                output_filename = generic_temp_folder / directive.args[0]
+            else:
+                output_filename = generic_temp_folder / directive_value
+            # output_filename = generic_temp_folder / output_filename.replace(f'{XConfig.REFERENCE_QUALIFIER}', '')
             store_cfg(output_filename, d)
             saved_cfgs.append(output_filename)
 
@@ -246,7 +258,8 @@ class TestXConfigReplace(object):
 
         to_replace = {}
         for p in placeholders:
-            to_replace[p] = np.random.randint(0, 10)
+            _p = Placeholder.from_string(p)
+            to_replace[_p.name] = np.random.randint(0, 10)
 
         assert len(conf.available_placeholders()) == len(placeholders)
 
@@ -254,14 +267,14 @@ class TestXConfigReplace(object):
 
         if len(conf.available_placeholders()) > 0:
 
-            for name, p in conf.available_placeholders():
+            for name, p in conf.available_placeholders().items():
                 assert isinstance(name, str)
-                assert isinstance(p, XPlaceholder)
+                assert isinstance(p, Placeholder)
 
             with pytest.raises(SystemExit):
                 conf.check_available_placeholders(close_app=True)
 
-            conf.replace_map(to_replace)
+            conf.replace_variables_map(to_replace)
 
             chunks = conf.chunks()
             for key, value in chunks:
@@ -293,33 +306,3 @@ class TestXConfigValidate(object):
         with pytest.raises(SchemaMissingKeyError):
             conf.validate()
         assert not conf.is_valid()
-
-    # def _test_to_dict(self, generic_temp_folder):
-    #     import rich
-    #     import npyscreen
-
-    #     def main(self):
-    #         F = npyscreen.Form(name="Customize configuration")
-
-    #         placeholders_map = {}
-    #         for name, value in conf2.available_placeholders():
-    #             # t  = F.add(npyscreen.TitleText, name = "Text:",)
-    #             placeholders_map[value] = F.add(npyscreen.TitleText, name=f"{name}:", begin_entry_at=32)
-    #         F.edit()
-    #         return {name: x.value for name, x in placeholders_map.items()}
-
-    #     sample_dict, schema, _ = self._sample_dict()
-
-    #     output_filename = 'gino.toml'
-    #     output_filename = generic_temp_folder / output_filename.replace('@', '')
-    #     store_cfg(output_filename, sample_dict)
-    #     rich.print(sample_dict)
-    #     rich.print(output_filename)
-
-    #     conf2 = XConfig(output_filename)
-    #     rich.print(conf2.to_dict())
-
-    #     # conf2.check_available_placeholders()
-    #     filled = npyscreen.wrapper_basic(main)
-    #     conf2.replace_map(filled)
-    #     rich.print(conf2.to_dict())
