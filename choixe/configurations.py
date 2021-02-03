@@ -17,6 +17,7 @@ class XConfig(Box):
     REFERENCE_QUALIFIER = '@'
     REPLACE_QUALIFIER = '$'
     KNOWN_EXTENSIONS = converters.keys()
+    PRIVATE_KEYS = ['_filename', '_schema']
 
     def __init__(self, filename: str = None):
         """ Creates a XConfig object from configuration file
@@ -75,12 +76,13 @@ class XConfig(Box):
         :raises NotImplementedError: Raise error for unrecognized extension
         """
         filename = Path(filename)
+        data = self.to_dict()
         if 'yml' in filename.suffix.lower() or 'yaml' in filename.suffix.lower():
-            Box(self.decode(self.to_dict())).to_yaml(filename=filename)
+            Box(self.decode(data)).to_yaml(filename=filename)
         elif 'json' in filename.suffix.lower():
-            Box(self.decode(self.to_dict())).to_json(filename=filename)
+            Box(self.decode(data)).to_json(filename=filename)
         elif 'toml' in filename.suffix.lower():
-            Box(self.decode(self.to_dict())).to_toml(filename=filename)
+            Box(self.decode(data)).to_toml(filename=filename)
         else:
             raise NotImplementedError(f"Extension {filename.suffix.lower()} not supported yet!")
 
@@ -98,6 +100,8 @@ class XConfig(Box):
         elif 'numpy' in str(type(data)):
             return cls.decode(data.item())
         elif isinstance(data, list):
+            return [cls.decode(x) for x in data]
+        elif isinstance(data, tuple):
             return [cls.decode(x) for x in data]
         elif isinstance(data, dict):
             return {k: cls.decode(x) for k, x in data.items()}
@@ -216,14 +220,18 @@ class XConfig(Box):
             if v is self:
                 out_dict[k] = out_dict
             elif isinstance(v, Box):
-                out_dict[k] = v.to_dict()
+                out_dict[k] = self.decode(v.to_dict())
             elif isinstance(v, BoxList):
-                out_dict[k] = v.to_list()
+                out_dict[k] = self.decode(v.to_list())
 
         if discard_private_qualifiers:
             chunks = self.chunks(discard_private_qualifiers=False)
             for chunk_name, value in chunks:
-                if f'.{self.PRIVATE_QUALIFIER}' in chunk_name or chunk_name.startswith(self.PRIVATE_QUALIFIER):
+                c0 = any([x for x in self.PRIVATE_KEYS if x in chunk_name])
+                c1 = any([f'.{x}' for x in self.PRIVATE_KEYS if x in chunk_name])
+                if c0 or c1:
+                    # if chunk_name in self.PRIVATE_KEYS or f'.{chunk_name}' in self.PRIVATE_KEYS:
+                    # if f'.{self.PRIVATE_QUALIFIER}' in chunk_name or chunk_name.startswith(self.PRIVATE_QUALIFIER):
                     pydash.unset(out_dict, chunk_name)
         return out_dict
 

@@ -150,11 +150,11 @@ def store_cfg(filename: Union[str, Path], d: dict):
     filename = str(filename)
     data = Box(d)
     if 'yml' in filename or 'yaml' in filename:
-        data.to_yaml(filename)
+        Box(XConfig.decode(data.to_dict())).to_yaml(filename)
     if 'json' in filename:
-        data.to_json(filename)
+        Box(XConfig.decode(data.to_dict())).to_json(filename)
     if 'toml' in filename:
-        data.to_toml(filename)
+        Box(XConfig.decode(data.to_dict())).to_toml(filename)
 
 
 class TestXConfig(object):
