@@ -6,4 +6,4 @@ from choixe.configurations import XConfig
 
 
 def test_version():
-    assert __version__ == '0.1.1'
+    assert __version__ == '__version__ = '0.1.2''
