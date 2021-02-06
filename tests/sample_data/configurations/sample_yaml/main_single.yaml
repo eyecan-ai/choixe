@@ -7,8 +7,8 @@ first:
     - - -1.6002857547151543
       - 0.03226522306802604
       - -1.19900984266209
-    ext_name: $v_3$bool
-  f1: $v_2$str
+    ext_name: '@bool(v_3)'
+  f1: '@str(v_2)'
   f2: 2.22
   f3:
   - 3
@@ -18,20 +18,20 @@ first:
   - 3
   - 3
   ops:
-    o1: $v_4$options("a","b","c")
-    o2: $v_5$path
-    o3: $v_6$date
-    o4: $v_7
-    o5: $v_8
-    o6: $v_9
-one: $v_0$int
+    o1: '@str(v_4)'
+    o2: '@path(v_5)'
+    o3: '@date(v_6)'
+    o4: '@data(v_7)'
+    o5: '@str()'
+    o6: '@str(v_9)'
+one: '@int(v_0)'
 three:
-  '2.1':
+  t21:
   - false
   - false
-  '3.1': true
+  t31: true
   name:
-    name_1: $v_1$float
+    name_1: '@float(v_1)'
     name_2: 2
     name_3:
       this_is_A_dict:

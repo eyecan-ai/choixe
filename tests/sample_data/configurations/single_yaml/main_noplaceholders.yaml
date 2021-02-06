@@ -1,11 +1,11 @@
-first: '@import(first.yaml)'
-one: '@int(v_0)'
+first: 'first'
+one: 1
 three:
   t21:
   - false
   - false
-  t31: true
-  name: '@import(three.name.yaml)'
+  t31: True
+  name: Willy
 two:
 - - -48
   - -5

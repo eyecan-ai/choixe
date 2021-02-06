@@ -1,3 +1,3 @@
-name_1: $v_1$float
+name_1: '@float(v_1)'
 name_2: 2
-name_3: three.name.name_3.yaml@
+name_3: '@import(three.name.name_3.yaml)'

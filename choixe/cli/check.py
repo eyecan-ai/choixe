@@ -11,7 +11,7 @@ def check(configuration_file, close):
 
     try:
         cfg = XConfig(filename=configuration_file)
-        rich.print(cfg)
+        rich.print(cfg.to_dict())
     except Exception as e:
         rich.print(f"[red]Invalid configuration file: {e}[/red]")
         import sys
