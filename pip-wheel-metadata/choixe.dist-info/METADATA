@@ -1,0 +1,71 @@
+Metadata-Version: 2.1
+Name: choixe
+Version: 0.1.0
+Summary: Configurations Superpowers
+Home-page: https://github.com/eyecan-ai/choixe
+Author: daniele de gregorio
+Author-email: daniele.degregorio@eyecan.ai
+License: GNU General Public License v3
+Keywords: choixe
+Platform: UNKNOWN
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Requires-Python: >=3.5
+Requires-Dist: click (>=7.1.2)
+Requires-Dist: rich (>=9.9.0)
+Requires-Dist: python-box (>=5.2.0)
+Requires-Dist: numpy
+Requires-Dist: deepdiff (>=5.2.2)
+Requires-Dist: schema (>=0.7.4)
+Requires-Dist: pydash (>=4.9.2)
+
+======
+choixe
+======
+
+
+.. image:: https://img.shields.io/pypi/v/choixe.svg
+        :target: https://pypi.python.org/pypi/choixe
+
+.. image:: https://img.shields.io/travis/m4nh/choixe.svg
+        :target: https://travis-ci.com/m4nh/choixe
+
+.. image:: https://readthedocs.org/projects/choixe/badge/?version=latest
+        :target: https://choixe.readthedocs.io/en/latest/?badge=latest
+        :alt: Documentation Status
+
+
+.. image:: https://pyup.io/repos/github/m4nh/choixe/shield.svg
+     :target: https://pyup.io/repos/github/m4nh/choixe/
+     :alt: Updates
+
+
+
+Configurations Superpowers
+
+
+* Free software: GNU General Public License v3
+* Documentation: https://choixe.readthedocs.io.
+
+
+Features
+--------
+
+* TODO
+
+Credits
+-------
+
+This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
+
+.. _Cookiecutter: https://github.com/audreyr/cookiecutter
+.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+
+

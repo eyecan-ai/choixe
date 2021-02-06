@@ -1,2 +1,7 @@
 click>=7.1.2
 rich>=9.9.0
+python-box>=5.2.0
+numpy
+deepdiff>=5.2.2
+schema>=0.7.4
+pydash>=4.9.2
