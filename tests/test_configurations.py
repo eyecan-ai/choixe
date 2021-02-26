@@ -1,3 +1,5 @@
+import os
+import rich
 from choixe.directives import DirectiveAT
 from choixe.placeholders import Placeholder
 from typing import Union
@@ -44,18 +46,22 @@ def simple_data():
         'three'
     ], reverse=True)
 
-    return sample_dict, schema, [], to_be_raplaced_keys
-
-
-def generate_placeholder(name: str, tp: str = None):
-    if tp is not None:
-        if len(tp) > 0:
-            return DirectiveAT.generate_directive_string(tp, [name])
-    return DirectiveAT.generate_directive_string('str', [name])
+    return {
+        'data': sample_dict,
+        'schema': schema,
+        'placeholders': [],
+        'environment_variables': [],
+        'to_be_replaced': to_be_raplaced_keys
+    }
 
 
 def complex_data():
     np.random.seed(666)
+
+    env_variables = [
+        generate_placeholder('v_10', 'env'),
+        generate_placeholder('v_11', 'env'),
+    ]
 
     placeholders = [
         generate_placeholder('v_0', 'int'),
@@ -67,28 +73,32 @@ def complex_data():
         generate_placeholder('v_6', 'date'),
         generate_placeholder('v_7'),
         generate_placeholder('v_8'),
-        generate_placeholder('v_9'),
+        generate_placeholder('v_9')
     ]
-    # placeholders = [
-    #     f'{XConfig.REPLACE_QUALIFIER}v_0',
-    #     f'{XConfig.REPLACE_QUALIFIER}v_1',
-    #     f'{XConfig.REPLACE_QUALIFIER}v_2',
-    #     f'{XConfig.REPLACE_QUALIFIER}v_3'
-    # ]
 
     sample_dict = {
+
         'one': placeholders[0],
         'two': np.random.randint(-50, 50, (3, 3)).tolist(),
         'three': {
             '3.1': 'TrueValue',
             '2.1': [False, False],
+
             'name': {
                 'name_1': placeholders[1],
                 'name_2': 2,
                 'name_3': {
                     'this_is_a_list': [3.3, 3.3],
                     'this_is_A_dict': {
-                        'a': {'f': True, 's': False}
+                        'a': {
+                            'f': True,
+                            's': False,
+                            'numpy_array': np.array([1., 2, 3]),
+                            'numpy_data': np.array([1., 2, 3])[0],
+                            'tuple': ('a', 'b', '2'),
+                            'boxlist': BoxList([1, 2, 3, 4]),
+                            'boxdict': Box({'a': 2.2})
+                        }
                     }
                 }
             }
@@ -108,7 +118,11 @@ def complex_data():
                 'o4': placeholders[7],
                 'o5': placeholders[8],
                 'o6': placeholders[9]
-            }
+            },
+            'env': [
+                env_variables[0],
+                env_variables[1]
+            ]
         }
     }
 
@@ -135,7 +149,20 @@ def complex_data():
         'first.external'
     ], reverse=True)
 
-    return sample_dict, schema, placeholders, to_be_raplaced_keys
+    return {
+        'data': XConfig.decode(sample_dict),
+        'schema': schema,
+        'placeholders': placeholders,
+        'environment_variables': env_variables,
+        'to_be_replaced': to_be_raplaced_keys
+    }
+
+
+def generate_placeholder(name: str, tp: str = None):
+    if tp is not None:
+        if len(tp) > 0:
+            return DirectiveAT.generate_directive_string(tp, [name])
+    return DirectiveAT.generate_directive_string('str', [name])
 
 
 def data_to_test():
@@ -165,7 +192,8 @@ class TestXConfig(object):
 
         generic_temp_folder = Path(generic_temp_folder)
 
-        sample_dict, _, _, to_be_raplaced_keys = data
+        sample_dict = data['data']
+        to_be_raplaced_keys = data['to_be_replaced']  # , _, _, to_be_raplaced_keys = data
         volatile_dict = copy.deepcopy(sample_dict)
 
         subtitutions_values = {}
@@ -193,7 +221,11 @@ class TestXConfig(object):
 
         yconf = XConfig(output_cfg_filename)
         yconf.save_to(output_cfg_filename2)
+
         yconf_reloaded = XConfig(output_cfg_filename2)
+
+        with pytest.raises(NotImplementedError):
+            yconf.save_to(str(output_cfg_filename2) + "#IMPOSSIBLE.EXTENSION")
 
         assert not DeepDiff(yconf.to_dict(), sample_dict)
         assert not DeepDiff(yconf_reloaded.to_dict(), sample_dict)
@@ -213,7 +245,8 @@ class TestXConfig(object):
         """
         generic_temp_folder = Path(generic_temp_folder)
 
-        sample_dict, _, _, to_be_raplaced_keys = data
+        sample_dict = data['data']
+        to_be_raplaced_keys = data['to_be_replaced']  # , _, _, to_be_raplaced_keys = data
         volatile_dict = copy.deepcopy(sample_dict)
 
         subtitutions_values = {}
@@ -250,7 +283,9 @@ class TestXConfigReplace(object):
     @pytest.mark.parametrize("data", data_to_test())
     def test_replace(self, generic_temp_folder, data):
 
-        sample_dict, _, placeholders, _ = data
+        sample_dict = data['data']
+        placeholders = data['placeholders']  # , _, _, to_be_raplaced_keys = data
+        environment_variables = data['environment_variables']
 
         conf = XConfig.from_dict(sample_dict)
 
@@ -261,7 +296,7 @@ class TestXConfigReplace(object):
             _p = Placeholder.from_string(p)
             to_replace[_p.name] = np.random.randint(0, 10)
 
-        assert len(conf.available_placeholders()) == len(placeholders)
+        assert len(conf.available_placeholders()) == len(placeholders) + len(environment_variables)
 
         conf.check_available_placeholders(close_app=False)
 
@@ -281,7 +316,38 @@ class TestXConfigReplace(object):
                 if not isinstance(value, Box) and not isinstance(value, BoxList):
                     assert value not in to_replace.keys()
 
-            assert len(conf.available_placeholders()) == 0
+            assert len(conf.available_placeholders()) == len(environment_variables)
+
+
+class TestXConfigEnvironmentVariable(object):
+
+    @pytest.mark.parametrize("data", data_to_test())
+    def test_env_variables(self, generic_temp_folder, data):
+
+        sample_dict = data['data']
+        placeholders = data['placeholders']  # , _, _, to_be_raplaced_keys = data
+        environment_variables = data['environment_variables']
+
+        conf = XConfig.from_dict(sample_dict)
+        np.random.seed(66)
+
+        assert len(conf.available_placeholders()) == len(placeholders) + len(environment_variables)
+
+        for envv in environment_variables:
+            pl = Placeholder.from_string(envv)
+            assert pl.name not in os.environ, f"this PYTEST needs no environment variable with name '{pl.name}' "
+
+        # Load and parse environment variables but nobody set them!
+        conf = XConfig.from_dict(sample_dict, replace_environment_variables=True)
+        assert len(conf.available_placeholders()) == len(placeholders) + len(environment_variables)
+
+        # Load and parse environment variables with manual set
+        for envv in environment_variables:
+            pl = Placeholder.from_string(envv)
+            os.environ[pl.name] = str(np.random.uniform(0, 1, (1,)))
+
+        conf = XConfig.from_dict(sample_dict, replace_environment_variables=True)
+        assert len(conf.available_placeholders()) == len(placeholders)
 
 
 class TestXConfigValidate(object):
@@ -289,7 +355,8 @@ class TestXConfigValidate(object):
     @pytest.mark.parametrize("data", data_to_test())
     def test_validation(self, generic_temp_folder, data):
 
-        sample_dict, schema, _, _ = data
+        sample_dict = data['data']
+        schema = data['schema']  # , _, _, to_be_raplaced_keys = data
 
         conf = XConfig.from_dict(sample_dict)
         conf.set_schema(schema)
