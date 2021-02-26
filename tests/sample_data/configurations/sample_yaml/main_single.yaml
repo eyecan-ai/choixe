@@ -24,6 +24,7 @@ first:
     o4: '@data(v_7)'
     o5: '@str()'
     o6: '@str(v_9)'
+  envs: ['@env(v_10)','@env(v_11)']
 one: '@int(v_0)'
 three:
   t21:

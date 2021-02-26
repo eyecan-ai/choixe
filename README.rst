@@ -14,3 +14,7 @@ choixe
 
 Configurations Superpowers
 
+KNOWN ISSUES
+------------
+
+* In TOML mixed types array is not allowed! 

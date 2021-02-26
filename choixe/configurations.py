@@ -1,5 +1,8 @@
+import os
+
+from numpy.lib.function_base import place
 from choixe.importers import Importer, ImporterType
-from choixe.placeholders import Placeholder
+from choixe.placeholders import Placeholder, PlaceholderType
 from choixe.directives import DirectiveAT, DirectiveFactory
 from enum import Enum, auto
 from box.from_file import converters
@@ -19,17 +22,31 @@ class XConfig(Box):
     KNOWN_EXTENSIONS = converters.keys()
     PRIVATE_KEYS = ['_filename', '_schema']
 
-    def __init__(self, filename: str = None):
+    def __init__(self, filename: str = None, **kwargs):
         """ Creates a XConfig object from configuration file
         :param filename: configuration file [yaml, json, toml], defaults to None
         :type filename: str, optional
+        :param replace_environment_variables: TRUE to auto replace environemnt variables placeholders, defaults to False
+        :type replace_environment_variables: bool, optional
+        :param plain_dict: if not None will be used as data source instead of filename, defaults to None
+        :type plain_dict: dict, optional
         """
+
+        # options
+        replace_env_variables = kwargs.get('replace_environment_variables', True)
+        _dict = kwargs.get('plain_dict', None)
+
         self._filename = None
-        if filename is not None:
-            self._filename = Path(filename)
-            self.update(box_from_file(file=Path(filename)))
+
+        if _dict is None:
+            if filename is not None:
+                self._filename = Path(filename)
+                self.update(box_from_file(file=Path(filename)))
+        else:
+            self.update(_dict)
+
         self._schema = None
-        self.deep_parse()
+        self.deep_parse(replace_environment_variables=replace_env_variables)
 
     @property
     def root_content(self) -> Union[None, Any]:
@@ -99,16 +116,12 @@ class XConfig(Box):
             return cls.decode(data.tolist())
         elif 'numpy' in str(type(data)):
             return cls.decode(data.item())
-        elif isinstance(data, list):
+        elif isinstance(data, list) or isinstance(data, BoxList):
             return [cls.decode(x) for x in data]
         elif isinstance(data, tuple):
             return [cls.decode(x) for x in data]
-        elif isinstance(data, dict):
+        elif isinstance(data, dict) or isinstance(data, Box):
             return {k: cls.decode(x) for k, x in data.items()}
-        elif isinstance(data, Box):
-            return cls.decode(data.to_dict())
-        elif isinstance(data, BoxList):
-            return cls.decode(data.to_list())
         else:
             return data
 
@@ -170,10 +183,26 @@ class XConfig(Box):
         for old_v, new_v in m.items():
             self.replace_variable(old_v, new_v)
 
-    def deep_parse(self):
+    def deep_parse(self, replace_environment_variables: bool = False):
         """ Deep visit of dictionary replacing filename values with a new XConfig object recusively
+
+        :param replace_environment_variables: TRUE to auto replace environment variables
+        :type replace_environment_variables: bool
         """
         chunks = self.chunks()
+        self._deep_parse_for_importers(chunks)
+        if replace_environment_variables:
+            self._deep_parse_for_environ(chunks)
+
+    def _deep_parse_for_importers(self, chunks: Sequence[Tuple[str, Any]]):
+        """ Deep visit of dictionary replacing filename values with a new XConfig object recusively
+
+        :param chunks: chunks to visit
+        :type chunks: Sequence[Tuple[str, Any]]
+        :raises NotImplementedError: Importer type not found
+        :raises OSError: replace file not found
+        """
+
         for chunk_name, value in chunks:
             if not isinstance(value, str):
                 continue
@@ -198,17 +227,27 @@ class XConfig(Box):
                     else:
                         raise OSError(f'File {p} not found!')
 
-    def _could_be_path(self, p: str) -> bool:
-        """ Check if a string could be a path. It's not a robust test outside XConfig!
-        :param p: source string
-        :type p: str
-        :return: TRUE = 'maybe is path'
-        :rtype: bool
+    def _deep_parse_for_environ(self, chunks: Sequence[Tuple[str, Any]]):
+        """ Deep visit of dictionary replacing environment variables if any
+
+        :param chunks: chunks to visit
+        :type chunks: Sequence[Tuple[str, Any]]
+        :raises NotImplementedError: Importer type not found
+        :raises OSError: replace file not found
         """
-        if isinstance(p, str):
-            if any(f'.{x}{self.REFERENCE_QUALIFIER}' in p for x in self.KNOWN_EXTENSIONS):
-                return True
-        return False
+
+        env_to_replace = {}
+        for chunk_name, value in chunks:
+            if not isinstance(value, str):
+                continue
+            placeholder = Placeholder.from_string(value)
+            if placeholder is not None:
+                if placeholder.is_valid():
+                    if placeholder.type == PlaceholderType.ENV:
+                        if placeholder.name in os.environ:
+                            env_to_replace[placeholder.name] = os.environ.get(placeholder.name)
+
+        self.replace_variables_map(env_to_replace)
 
     def to_dict(self, discard_private_qualifiers: bool = True) -> Dict:
         """
@@ -217,9 +256,9 @@ class XConfig(Box):
         """
         out_dict = dict(self)
         for k, v in out_dict.items():
-            if v is self:
-                out_dict[k] = out_dict
-            elif isinstance(v, Box):
+            # if v is self:
+            #     out_dict[k] = out_dict
+            if isinstance(v, Box):
                 out_dict[k] = self.decode(v.to_dict())
             elif isinstance(v, BoxList):
                 out_dict[k] = self.decode(v.to_list())
@@ -237,6 +276,7 @@ class XConfig(Box):
 
     def available_placeholders(self) -> Dict[str, Placeholder]:
         """ Retrieves the available placeholders list
+
         :return: list of found (str,str) pairs
         :rtype: Tuple[str,str]
         """
@@ -284,15 +324,14 @@ class XConfig(Box):
         return True
 
     @classmethod
-    def from_dict(cls, d: dict) -> 'XConfig':
+    def from_dict(cls, d: dict, **kwargs) -> 'XConfig':
         """ Creates XConfig from a plain dictionary
         : param d: input dictionary
         : type d: dict
         : return: built XConfig
         : rtype: XConfig
         """
-        cfg = XConfig()
-        cfg.update(Box(d))
+        cfg = XConfig(filename=None, plain_dict=d, **kwargs)
         return cfg
 
     @classmethod
@@ -332,5 +371,8 @@ class XConfig(Box):
                 path.append(str(idx))
                 cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers)
                 path.pop()
+        else:
+            chunk_name = ".".join(map(str, path))
+            chunks.append((chunk_name, d))
         if root:
             return chunks

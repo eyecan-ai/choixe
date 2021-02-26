@@ -1,0 +1,7 @@
+one:
+  s0: 'hello'
+  s1: 22.2
+  s3: '@env(V0)'
+two:
+  - '@env(V1)'
+  - '@env(V2)'
