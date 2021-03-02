@@ -6,6 +6,7 @@ three:
   - false
   t31: true
   name: '@import(three.name.yaml)'
+  external_code: '@import(external_content.py)'
 two:
 - - -48
   - -5

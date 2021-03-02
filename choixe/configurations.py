@@ -1,3 +1,4 @@
+from dataclasses import field
 import os
 
 from numpy.lib.function_base import place
@@ -217,15 +218,38 @@ class XConfig(Box):
                         p = self._filename.parent / p
 
                     if p.exists():
-                        sub_cfg = XConfig(filename=p)
-                        if importer.type == ImporterType.IMPORT_ROOT:
-                            pydash.set_(self, chunk_name, sub_cfg.root_content)
-                        elif importer.type == ImporterType.IMPORT:
-                            pydash.set_(self, chunk_name, sub_cfg)
-                        else:
-                            raise NotImplementedError(f"Number of {self.REFERENCE_QUALIFIER} is wrong!")
+                        self._import_external_file(importer, chunk_name, p)
                     else:
                         raise OSError(f'File {p} not found!')
+
+    def _import_external_file(self, importer: Importer, chunk_name: str, filename: Path):
+        """ Imports a generic file into cfg tree
+
+        :param importer: importer directive
+        :type importer: Importer
+        :param chunk_name: chunk name to replace
+        :type chunk_name: str
+        :param filename: external filename to import
+        :type filename: Path
+        :raises NotImplementedError: if importer type is not managed yet
+        :raises RuntimeError: if external file content is not readable
+        """
+
+        extension = filename.suffix.replace('.', '')
+        if extension in self.KNOWN_EXTENSIONS:
+            sub_cfg = XConfig(filename=filename)
+            if importer.type == ImporterType.IMPORT_ROOT:
+                pydash.set_(self, chunk_name, sub_cfg.root_content)
+            elif importer.type == ImporterType.IMPORT:
+                pydash.set_(self, chunk_name, sub_cfg)
+            else:
+                raise NotImplementedError(f"Importer type {importer.type} not implemented yet!")
+        else:
+            try:
+                content = open(filename, 'r').read()
+                pydash.set_(self, chunk_name, content)
+            except UnicodeDecodeError:
+                raise RuntimeError(f'Error reading content of file: {str(filename)}. Is this a binary file?')
 
     def _deep_parse_for_environ(self, chunks: Sequence[Tuple[str, Any]]):
         """ Deep visit of dictionary replacing environment variables if any
