@@ -5,5 +5,5 @@ numpy
 deepdiff>=5.2.2
 schema>=0.7.4
 pydash>=4.9.2
-PyYAML>=5.4.1
+PyYAML
 toml>=0.10.2
