@@ -73,7 +73,11 @@ def complex_data():
         generate_placeholder('v_6', 'date'),
         generate_placeholder('v_7'),
         generate_placeholder('v_8'),
-        generate_placeholder('v_9')
+        generate_placeholder('v_9'),
+        generate_placeholder('v_with_dots_0'),
+        generate_placeholder('v_with_dots_1'),
+        generate_placeholder('v_with_dots_2'),
+        generate_placeholder('v_with_dots_3')
     ]
 
     sample_dict = {
@@ -122,7 +126,16 @@ def complex_data():
             'env': [
                 env_variables[0],
                 env_variables[1]
-            ]
+            ],
+            'key': {
+                'with': 120,
+                'dots': placeholders[12],
+            },
+            'key.with.dots': placeholders[10],
+            'key.with...many.....dots': placeholders[11],
+            'nested.key': {
+                'with.dots': placeholders[13]
+            }
         }
     }
 
@@ -308,7 +321,6 @@ class TestXConfigReplace(object):
 
             with pytest.raises(SystemExit):
                 conf.check_available_placeholders(close_app=True)
-
             conf.replace_variables_map(to_replace)
 
             chunks = conf.chunks()
