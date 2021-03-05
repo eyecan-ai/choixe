@@ -10,7 +10,7 @@ from box.from_file import converters
 from box import box_from_file, Box, BoxList
 import numpy as np
 import pydash
-from typing import Any, Dict, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
 from schema import Schema
 from pathlib import Path
 import re
@@ -127,13 +127,23 @@ class XConfig(Box):
             return data
 
     def chunks(self, discard_private_qualifiers: bool = True) -> Sequence[Tuple[str, Any]]:
-        """ Builds a plain view of dictionary with pydash notation
+        """ Builds a plain view of dictionary with pydash dot notation
         :param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
         :type discard_private_qualifiers: bool, optional
         :return: list of pairs (key, value) where key is a dot notation pydash key (e.g. d['one']['two']['three'] -> 'one.two.three' )
         :rtype: Sequence[Tuple[str, Any]]
         """
         return self._walk(self, discard_private_qualifiers=discard_private_qualifiers)
+
+    def chunks_as_lists(self, discard_private_qualifiers: bool = True) -> Sequence[Tuple[List[str], Any]]:
+        """ Builds a plain view of dictionary with pydash list of str notation
+        :param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
+        :type discard_private_qualifiers: bool, optional
+        :return: list of pairs (key, value) where key is a list of str pydash key (e.g. d['one']['two']['three'] -> ['one', 'two', 'three'] )
+        :rtype: Sequence[Tuple[List[str], Any]]
+        """
+        return self._walk(self, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=False)
+
 
     def is_a_placeholder(self, value: any) -> bool:
         """ Checks if value is likely a placeholder
@@ -168,7 +178,7 @@ class XConfig(Box):
         :param new_value: new key value
         :type new_value: str
         """
-        chunks = self.chunks(discard_private_qualifiers=True)
+        chunks = self.chunks_as_lists(discard_private_qualifiers=True)
         for k, v in chunks:
             p = Placeholder.from_string(v)
             if p is not None and p.is_valid():
@@ -362,7 +372,8 @@ class XConfig(Box):
     def _walk(cls,
               d: Dict, path: Sequence = None,
               chunks: Sequence = None,
-              discard_private_qualifiers: bool = True) -> Sequence[Tuple[str, Any]]:
+              discard_private_qualifiers: bool = True,
+              use_dot_notation: bool = True) -> Sequence[Tuple[str, Any]]:
         """ Deep visit of dictionary building a plain sequence of pairs(key, value) where key has a pydash notation
         : param d: input dictionary
         : type d: Dict
@@ -372,6 +383,8 @@ class XConfig(Box):
         : type chunks: Sequence, optional
         : param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
         : type discard_private_qualifiers: bool, optional
+        : param use_dot_notation: True to use pydash dot notation, False to use list of str notation, defaults to True
+        : type use_dot_notation: bool
         : return: sequence of retrieved pairs
         : rtype: Sequence[Tuple[str, Any]]
         """
@@ -380,23 +393,27 @@ class XConfig(Box):
             path, chunks, root = [], [], True
         if isinstance(d, dict):
             for k, v in d.items():
+                path.append(k)
                 if isinstance(v, dict) or isinstance(v, list):
-                    path.append(k)
-                    cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers)
-                    path.pop()
+                    cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=use_dot_notation)
                 else:
-                    path.append(k)
-                    chunk_name = ".".join(map(str, path))
+                    chunk = list(map(str, path))
+                    chunk_name = ".".join(chunk)
                     if not(discard_private_qualifiers and chunk_name.startswith(cls.PRIVATE_QUALIFIER)):
-                        chunks.append((chunk_name, v))
-                    path.pop()
+                        if use_dot_notation:
+                            chunks.append((chunk_name, v))
+                        else:
+                            chunks.append((chunk, v))
+                path.pop()
         elif isinstance(d, list):
             for idx, v in enumerate(d):
                 path.append(str(idx))
-                cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers)
+                cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=use_dot_notation)
                 path.pop()
         else:
-            chunk_name = ".".join(map(str, path))
-            chunks.append((chunk_name, d))
+            chunk = list(map(str, path))
+            if use_dot_notation:
+                chunk = ".".join(chunk)
+            chunks.append((chunk, d))
         if root:
             return chunks
