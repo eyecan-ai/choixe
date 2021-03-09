@@ -49,6 +49,10 @@ class MyBundle(Spook):
         self._name = name
         self._images = images
 
+    @property
+    def images(self) -> Sequence[MyImage]:
+        return self._images
+
     @classmethod
     def spook_schema(cls) -> dict:
         return {
@@ -80,6 +84,7 @@ bundle = MyBundle(
     ]
 )
 
+
 # Serialization
 bundle_serialized = bundle.serialize()
 rich.print("Serialized object:", bundle_serialized)
@@ -92,5 +97,8 @@ rich.print("Stored config in:", cfg_filename)
 
 # IO Read
 cfg = XConfig(filename=cfg_filename)
-hydrated_bundle = Spook.create(cfg)
+hydrated_bundle: MyBundle = Spook.create(cfg)
 rich.print("Hydrated object:", hydrated_bundle.serialize())
+
+for image in hydrated_bundle.images:
+    image.my_method()
