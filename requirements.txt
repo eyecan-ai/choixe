@@ -7,3 +7,4 @@ schema>=0.7.4
 pydash>=4.9.2
 PyYAML
 toml>=0.10.2
+pika
