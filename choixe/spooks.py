@@ -1,16 +1,32 @@
+from __future__ import annotations
+from abc import ABCMeta
 
-from functools import wraps
 import typing
-from abc import ABC
 from schema import Schema
 
 
-class Spook(ABC):
+class MetaSpook(ABCMeta):
+    # 😱😱😱😱😱😱😱😱😱😱😱😱😱😱
+    SPOOKS_MAP = {}
+
+    def __init__(self, name, bases, dict) -> None:
+        MetaSpook.register_spook(self)
+
+    @classmethod
+    def register_spook(cls, x: typing.Type[Spook]):
+        """ Register a Spook in the factory map
+
+        :param x: target class to register. It must be a Spook!
+        :type x: Type[Spook]
+        """
+        cls.SPOOKS_MAP[x.spook_name()] = x
+
+
+class Spook(metaclass=MetaSpook):
     # 👻👻👻👻👻👻👻👻👻👻👻👻👻👻
 
     TYPE_FIELD = '__spook__'
     ARGS_FIELD = 'args'
-    SPOOKS_MAP = {}
 
     @classmethod
     def spook_name(cls) -> str:
@@ -64,15 +80,6 @@ class Spook(ABC):
         return cls.from_dict(d[Spook.ARGS_FIELD])
 
     @classmethod
-    def register_spook(cls, x: type):
-        """ Register a Spook in the factory map
-
-        :param x: target class to register. It must be a Spook!
-        :type x: Spook
-        """
-        cls.SPOOKS_MAP[x.spook_name()] = x
-
-    @classmethod
     def create(cls, d: dict, validate: bool = True) -> any:
         """ Creates an object starting from its serialized dict.
         It must be a Spook serialized class containing all deserialization attributes
@@ -89,18 +96,3 @@ class Spook(ABC):
             bt = cls.SPOOKS_MAP[d[Spook.TYPE_FIELD]]
             return bt.hydrate(d, validate=validate)
         raise RuntimeError(f'Non serializable data: {d}')
-
-    # 🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻
-    # 🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻
-    # 🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻
-    # 🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻
-
-    @staticmethod
-    def make_serializable(x: type):
-        Spook.register_spook(x)
-        return x
-
-    # 🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻
-    # 🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻
-    # 🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻
-    # 🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻🤟🏻

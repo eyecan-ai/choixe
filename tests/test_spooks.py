@@ -4,7 +4,6 @@ from schema import Or, SchemaError
 from choixe.spooks import Spook
 
 
-@Spook.make_serializable
 class SimpleUserObject__(Spook):
 
     def __init__(
@@ -25,7 +24,6 @@ class SimpleUserObject__(Spook):
             self.c == o.c
 
 
-@Spook.make_serializable
 class CustomUserObject__(Spook):
 
     def __init__(
@@ -67,7 +65,6 @@ class CustomUserObject__(Spook):
             self._misc[2] == o._misc[2]
 
 
-@Spook.make_serializable
 class NestedUserObject_(Spook):
 
     def __init__(self, name: str, o0: SimpleUserObject__, o1: SimpleUserObject__):

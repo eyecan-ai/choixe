@@ -1,13 +1,13 @@
 from pathlib import Path
 import tempfile
+from abc import ABC, abstractmethod
 from choixe.configurations import XConfig
 import rich
 from typing import Sequence
 from choixe.spooks import Spook
 
 
-@Spook.make_serializable
-class MyImage(Spook):
+class MyImageABC(ABC, Spook):
 
     def __init__(self, name: str, image_size: Sequence[int]) -> None:
         super().__init__()
@@ -21,6 +21,11 @@ class MyImage(Spook):
             'image_size': [int, int]
         }
 
+    # Works with abstract classes too
+    @abstractmethod
+    def my_method(self) -> None:
+        pass
+
     @classmethod
     def from_dict(cls, d: dict):
         return cls(**d)
@@ -32,7 +37,11 @@ class MyImage(Spook):
         }
 
 
-@Spook.make_serializable
+class MyImage(MyImageABC):
+    def my_method(self) -> None:
+        print('Hello')
+
+
 class MyBundle(Spook):
 
     def __init__(self, name: str, images: Sequence[MyImage]) -> None:
