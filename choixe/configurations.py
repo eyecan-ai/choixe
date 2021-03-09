@@ -143,7 +143,6 @@ class XConfig(Box):
         """
         return self._walk(self, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=False)
 
-
     def is_a_placeholder(self, value: any) -> bool:
         """ Checks if value is likely a placeholder
 
@@ -317,13 +316,15 @@ class XConfig(Box):
             table.add_column("Placeholder", style="dim")
             table.add_column("Name")
             table.add_column("Type")
+            table.add_column("Options")
+            table.add_column("Default")
 
             header = "*** Incomplete Configuration, Placeholders found! ***"
             rich.print(Markdown(f"# {header}"))
 
             for k, p in placeholders.items():
                 if p.is_valid():
-                    table.add_row(k, p.name, p.plain_type)
+                    table.add_row(k, p.name, p.plain_type, '|'.join(p.options), p.default_value)
 
             console.print(table)
 

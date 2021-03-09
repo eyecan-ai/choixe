@@ -72,6 +72,18 @@ class Placeholder(DirectiveConsumer):
         return None
 
     @property
+    def options(self):
+        if self.is_valid():
+            return self._directive.args[1:]
+        return []
+
+    @property
+    def default_value(self):
+        if self.is_valid():
+            return self._directive.default_value
+        return None
+
+    @property
     def plain_type(self):
         if self.is_valid():
             return PlaceholderType.get_type_as_string(self._directive.label)

@@ -2,7 +2,7 @@ import os
 import rich
 from choixe.directives import DirectiveAT
 from choixe.placeholders import Placeholder
-from typing import Union
+from typing import Sequence, Union
 import copy
 from box.box_list import BoxList
 import numpy as np
@@ -64,14 +64,14 @@ def complex_data():
     ]
 
     placeholders = [
-        generate_placeholder('v_0', 'int'),
+        generate_placeholder('v_0', 'int', [6, 7, 8, 'default=10']),
         generate_placeholder('v_1', 'float'),
-        generate_placeholder('v_2', 'str'),
+        generate_placeholder('v_2', 'str', ['alpha', 'beta', 'gamma']),
         generate_placeholder('v_3', 'bool'),
         generate_placeholder('v_4'),
         generate_placeholder('v_5', 'path'),
         generate_placeholder('v_6', 'date'),
-        generate_placeholder('v_7'),
+        generate_placeholder('v_7', 'str', ['A', 'B', 'C', 'default=C']),
         generate_placeholder('v_8'),
         generate_placeholder('v_9'),
         generate_placeholder('v_with_dots_0'),
@@ -171,11 +171,14 @@ def complex_data():
     }
 
 
-def generate_placeholder(name: str, tp: str = None):
+def generate_placeholder(name: str, tp: str = None, others: Sequence = None):
+    args = [name]
+    if others is not None:
+        args.extend(others)
     if tp is not None:
         if len(tp) > 0:
-            return DirectiveAT.generate_directive_string(tp, [name])
-    return DirectiveAT.generate_directive_string('str', [name])
+            return DirectiveAT.generate_directive_string(tp, args)
+    return DirectiveAT.generate_directive_string('str', args)
 
 
 def data_to_test():
