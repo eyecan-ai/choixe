@@ -34,26 +34,33 @@ class Directive(ABC):
     def args(self):
         return self._args
 
+    @property
+    def default_value(self):
+        return self._default_value
+
     def __init__(self, value: str):
         if self.is_directive(value):
             self._valid = True
             self._tokens = self.tokenize(value)
             self._label = self._tokens['label'].lower()
             self._args = self._tokens['args']
+            self._default_value = self._tokens['default_value']
         else:
             self._valid = False
             self._tokens = {}
             self._label = ''
             self._args = []
+            self._default_value = None
 
 
 class DirectiveAT(Directive):
+    DEFAULT_KEY = 'default'
 
     @classmethod
     def generate_directive_string(cls, label: str, args: list = None) -> str:
         if args is None:
             args = []
-        return f'@{label}(' + ','.join(args) + ')'
+        return f'@{label}(' + ','.join(map(str, args)) + ')'
 
     @classmethod
     def directive_pattern(cls) -> str:
@@ -62,6 +69,7 @@ class DirectiveAT(Directive):
     @classmethod
     def tokenize(cls, value: str) -> dict:
         value = value.strip()
+        value = value.replace(' ', '')
         for ch in ['@', '(', ')']:
             value = value.replace(ch, ' ')
         values = value.split(' ')
@@ -70,9 +78,23 @@ class DirectiveAT(Directive):
 
         label = values[0]
         args = values[1].split(',') if len(values) > 1 else []
+
+        default_token = f'{cls.DEFAULT_KEY}='
+
+        # pick default arg
+        defaults = [x for x in args if default_token in x]
+        # pick all but defautl arg
+        args = [x for x in args if default_token not in x]
+
+        # set default value if any
+        default_value = None
+        if len(defaults) > 0:
+            default_value = defaults[0].replace(default_token, '')
+
         return {
             'label': label,
-            'args': args
+            'args': args,
+            'default_value': default_value
         }
 
 
