@@ -45,13 +45,17 @@ class XInquirer(object):
             
             if placeholder.type == PlaceholderType.BOOL:
                 choices = [True, False]
+                default = placeholder.default_value
+                if default is not None:
+                    default = True if placeholder.default_value.lower() == 'true' else False
             else:
                 choices = placeholder.options
+                default = placeholder.default_value
 
             question = inquirer.List(placeholder.name,
                                      message=message,
                                      choices=choices,
-                                     default=placeholder.default_value,
+                                     default=default,
                                      validate=validation)
         else:
             question = inquirer.Text(placeholder.name,
