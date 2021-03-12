@@ -1,4 +1,4 @@
-from typing import Dict, Sequence, Union, cast
+from typing import Any, Dict, Sequence, Union, cast
 import inquirer
 from choixe.configurations import XConfig
 from choixe.placeholders import Placeholder, PlaceholderType
@@ -7,7 +7,17 @@ from choixe.placeholders import Placeholder, PlaceholderType
 class XInquirer(object):
 
     @classmethod
-    def safe_cast_placeholder(cls, value, placeholder_type):
+    def safe_cast_placeholder(cls, value: Any, placeholder_type: PlaceholderType) -> bool:
+        """ Checks if the value can be casted to the specified type
+
+        :param value: any value
+        :type value: Any
+        :param placeholder_type: the placeholder type to check
+        :type placeholder_type: PlaceholderType
+        :return: either the value can be casted to the specified type or not
+        :rtype: bool
+        """
+        
         try:
             PlaceholderType.cast(value, placeholder_type)
             return True
@@ -15,7 +25,16 @@ class XInquirer(object):
             return False
 
     @classmethod
-    def placeholder_to_question(cls, placeholder: Placeholder) -> Sequence[Union[inquirer.Text, inquirer.List]]:
+    def placeholder_to_question(cls, placeholder: Placeholder) -> Union[inquirer.Text, inquirer.List]:
+        """ Converts a placeholder to an inquirer question (to Text if the placeholder
+        has no options, to List otherwise)
+
+        :param placeholder: the placeholder
+        :type placeholder: Placeholder
+        :return: the inquirer question
+        :rtype: Union[inquirer.Text, inquirer.List]
+        """
+
         message = f'{placeholder.name} ({placeholder.plain_type})'
         validation = lambda _, x: cls.safe_cast_placeholder(x, placeholder.type)
 
@@ -33,7 +52,15 @@ class XInquirer(object):
         return question
 
     @classmethod
-    def unique_placeholders_with_order(cls, placeholders: Dict[str, Placeholder]):
+    def unique_placeholders_with_order(cls, placeholders: Dict[str, Placeholder]) -> Sequence[Placeholder]:
+        """ Gets uniques placeholders from an xconfig mantaining the order
+
+        :param placeholders: dict of placeholders (the output of XConfig.available_placeholders())
+        :type placeholders: Dict[str, Placeholder]
+        :return: the unique placeholders
+        :rtype: Sequence[Placeholder]
+        """
+
         unique_names = set([ph.name for k, ph in placeholders.items()])
         unique_phs = []
         for k, ph in placeholders.items():
@@ -44,6 +71,17 @@ class XInquirer(object):
 
     @classmethod
     def prompt(cls, xconfig: XConfig, close_app: bool = True) -> XConfig:
+        """ Prompts the placeholders of an xconfig and fill them
+        with the user answers, it returns a copy of the original xconfig
+
+        :param xconfig: the xconfig
+        :type xconfig: XConfig
+        :param close_app: if True the app will be closed if all the placeholder are not filled, defaults to True
+        :type close_app: bool, optional
+        :return: the filled xconfig
+        :rtype: XConfig
+        """
+
         # copies the xconfig
         xconfig = XConfig.from_dict(xconfig.to_dict())
         # gets unique placeholders preserving order
