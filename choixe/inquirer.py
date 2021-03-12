@@ -19,15 +19,18 @@ class XInquirer(object):
         """
         
         try:
-            PlaceholderType.cast(value, placeholder_type)
+            if placeholder_type == PlaceholderType.BOOL:
+                return value is True or value is False
+            else:
+                PlaceholderType.cast(value, placeholder_type)
             return True
         except:
             return False
 
     @classmethod
     def placeholder_to_question(cls, placeholder: Placeholder) -> Union[inquirer.Text, inquirer.List]:
-        """ Converts a placeholder to an inquirer question (to Text if the placeholder
-        has no options, to List otherwise)
+        """ Converts a placeholder to an inquirer question (to List if the placeholder has
+        options or is boolean, Text otherwise)
 
         :param placeholder: the placeholder
         :type placeholder: Placeholder
@@ -38,10 +41,16 @@ class XInquirer(object):
         message = f'{placeholder.name} ({placeholder.plain_type})'
         validation = lambda _, x: cls.safe_cast_placeholder(x, placeholder.type)
 
-        if len(placeholder.options) > 0:
+        if len(placeholder.options) > 0 or placeholder.type == PlaceholderType.BOOL:
+            
+            if placeholder.type == PlaceholderType.BOOL:
+                choices = [True, False]
+            else:
+                choices = placeholder.options
+
             question = inquirer.List(placeholder.name,
                                      message=message,
-                                     choices=placeholder.options,
+                                     choices=choices,
                                      default=placeholder.default_value,
                                      validate=validation)
         else:
