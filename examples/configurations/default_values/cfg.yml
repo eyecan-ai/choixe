@@ -1,0 +1,7 @@
+one:
+  s0: '@str(NAME,alpha, beta, delta, gamma, default=alpha)'
+  s1: 22.2
+  s3: '@str(D0,a,b,c,d)'
+two:
+  - '@int(D1,1,10,100,1000,default=1000)'
+  - 'other'

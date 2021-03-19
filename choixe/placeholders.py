@@ -13,25 +13,11 @@ class PlaceholderType(Enum):
     BOOL = auto()
     PATH = auto()
     DATE = auto()
+    ENV = auto()
 
     @classmethod
     def values(cls):
         return list([c.name.lower() for c in cls])
-    # @classmethod
-    # def validate(cls, value: any, tp: str):
-    #     tp = cls.get_type(tp)
-    #     if tp is not None:
-    #         tp: PlaceholderType
-    #         if tp == PlaceholderType.INT:
-    #             return isinstance(value, int)
-    #         elif tp == PlaceholderType.FLOAT:
-    #             return isinstance(value, float)
-    #         elif tp == PlaceholderType.STR:
-    #             return isinstance(value, str)
-    #         elif tp == PlaceholderType.BOOL:
-    #             return isinstance(value, bool)
-
-    #     return False
 
     @classmethod
     def get_type(cls, value: str) -> Union['PlaceholderType', None]:
@@ -62,6 +48,8 @@ class PlaceholderType(Enum):
             return value
         elif tp == PlaceholderType.DATE:
             return value
+        elif tp == PlaceholderType.ENV:
+            return str(value)
         else:
             raise NotImplementedError(f'No cast for type [{tp}] on [{value}]')
 
@@ -81,6 +69,18 @@ class Placeholder(DirectiveConsumer):
         if self.is_valid():
             if len(self._directive.args) > 0:
                 return self._directive.args[0]
+        return None
+
+    @property
+    def options(self):
+        if self.is_valid():
+            return self._directive.args[1:]
+        return []
+
+    @property
+    def default_value(self):
+        if self.is_valid():
+            return self._directive.default_value
         return None
 
     @property

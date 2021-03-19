@@ -1,0 +1,5 @@
+complex:
+  alpha: 1.0
+  beta: 2.0
+  delta: '@import(external_code.py)'
+  gamma: '@import(external_text.txt)'

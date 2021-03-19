@@ -1,12 +1,16 @@
+from dataclasses import field
+import os
+
+from numpy.lib.function_base import place
 from choixe.importers import Importer, ImporterType
-from choixe.placeholders import Placeholder
+from choixe.placeholders import Placeholder, PlaceholderType
 from choixe.directives import DirectiveAT, DirectiveFactory
 from enum import Enum, auto
 from box.from_file import converters
 from box import box_from_file, Box, BoxList
 import numpy as np
 import pydash
-from typing import Any, Dict, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
 from schema import Schema
 from pathlib import Path
 import re
@@ -19,17 +23,31 @@ class XConfig(Box):
     KNOWN_EXTENSIONS = converters.keys()
     PRIVATE_KEYS = ['_filename', '_schema']
 
-    def __init__(self, filename: str = None):
+    def __init__(self, filename: str = None, **kwargs):
         """ Creates a XConfig object from configuration file
         :param filename: configuration file [yaml, json, toml], defaults to None
         :type filename: str, optional
+        :param replace_environment_variables: TRUE to auto replace environemnt variables placeholders, defaults to False
+        :type replace_environment_variables: bool, optional
+        :param plain_dict: if not None will be used as data source instead of filename, defaults to None
+        :type plain_dict: dict, optional
         """
+
+        # options
+        replace_env_variables = kwargs.get('replace_environment_variables', True)
+        _dict = kwargs.get('plain_dict', None)
+
         self._filename = None
-        if filename is not None:
-            self._filename = Path(filename)
-            self.update(box_from_file(file=Path(filename)))
+
+        if _dict is None:
+            if filename is not None:
+                self._filename = Path(filename)
+                self.update(box_from_file(file=Path(filename)))
+        else:
+            self.update(_dict)
+
         self._schema = None
-        self.deep_parse()
+        self.deep_parse(replace_environment_variables=replace_env_variables)
 
     @property
     def root_content(self) -> Union[None, Any]:
@@ -99,27 +117,32 @@ class XConfig(Box):
             return cls.decode(data.tolist())
         elif 'numpy' in str(type(data)):
             return cls.decode(data.item())
-        elif isinstance(data, list):
+        elif isinstance(data, list) or isinstance(data, BoxList):
             return [cls.decode(x) for x in data]
         elif isinstance(data, tuple):
             return [cls.decode(x) for x in data]
-        elif isinstance(data, dict):
+        elif isinstance(data, dict) or isinstance(data, Box):
             return {k: cls.decode(x) for k, x in data.items()}
-        elif isinstance(data, Box):
-            return cls.decode(data.to_dict())
-        elif isinstance(data, BoxList):
-            return cls.decode(data.to_list())
         else:
             return data
 
     def chunks(self, discard_private_qualifiers: bool = True) -> Sequence[Tuple[str, Any]]:
-        """ Builds a plain view of dictionary with pydash notation
+        """ Builds a plain view of dictionary with pydash dot notation
         :param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
         :type discard_private_qualifiers: bool, optional
         :return: list of pairs (key, value) where key is a dot notation pydash key (e.g. d['one']['two']['three'] -> 'one.two.three' )
         :rtype: Sequence[Tuple[str, Any]]
         """
         return self._walk(self, discard_private_qualifiers=discard_private_qualifiers)
+
+    def chunks_as_lists(self, discard_private_qualifiers: bool = True) -> Sequence[Tuple[List[str], Any]]:
+        """ Builds a plain view of dictionary with pydash list of str notation
+        :param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
+        :type discard_private_qualifiers: bool, optional
+        :return: list of pairs (key, value) where key is a list of str pydash key (e.g. d['one']['two']['three'] -> ['one', 'two', 'three'] )
+        :rtype: Sequence[Tuple[List[str], Any]]
+        """
+        return self._walk(self, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=False)
 
     def is_a_placeholder(self, value: any) -> bool:
         """ Checks if value is likely a placeholder
@@ -154,7 +177,7 @@ class XConfig(Box):
         :param new_value: new key value
         :type new_value: str
         """
-        chunks = self.chunks(discard_private_qualifiers=True)
+        chunks = self.chunks_as_lists(discard_private_qualifiers=True)
         for k, v in chunks:
             p = Placeholder.from_string(v)
             if p is not None and p.is_valid():
@@ -170,10 +193,26 @@ class XConfig(Box):
         for old_v, new_v in m.items():
             self.replace_variable(old_v, new_v)
 
-    def deep_parse(self):
+    def deep_parse(self, replace_environment_variables: bool = False):
         """ Deep visit of dictionary replacing filename values with a new XConfig object recusively
+
+        :param replace_environment_variables: TRUE to auto replace environment variables
+        :type replace_environment_variables: bool
         """
         chunks = self.chunks()
+        self._deep_parse_for_importers(chunks)
+        if replace_environment_variables:
+            self._deep_parse_for_environ(chunks)
+
+    def _deep_parse_for_importers(self, chunks: Sequence[Tuple[str, Any]]):
+        """ Deep visit of dictionary replacing filename values with a new XConfig object recusively
+
+        :param chunks: chunks to visit
+        :type chunks: Sequence[Tuple[str, Any]]
+        :raises NotImplementedError: Importer type not found
+        :raises OSError: replace file not found
+        """
+
         for chunk_name, value in chunks:
             if not isinstance(value, str):
                 continue
@@ -188,27 +227,60 @@ class XConfig(Box):
                         p = self._filename.parent / p
 
                     if p.exists():
-                        sub_cfg = XConfig(filename=p)
-                        if importer.type == ImporterType.IMPORT_ROOT:
-                            pydash.set_(self, chunk_name, sub_cfg.root_content)
-                        elif importer.type == ImporterType.IMPORT:
-                            pydash.set_(self, chunk_name, sub_cfg)
-                        else:
-                            raise NotImplementedError(f"Number of {self.REFERENCE_QUALIFIER} is wrong!")
+                        self._import_external_file(importer, chunk_name, p)
                     else:
                         raise OSError(f'File {p} not found!')
 
-    def _could_be_path(self, p: str) -> bool:
-        """ Check if a string could be a path. It's not a robust test outside XConfig!
-        :param p: source string
-        :type p: str
-        :return: TRUE = 'maybe is path'
-        :rtype: bool
+    def _import_external_file(self, importer: Importer, chunk_name: str, filename: Path):
+        """ Imports a generic file into cfg tree
+
+        :param importer: importer directive
+        :type importer: Importer
+        :param chunk_name: chunk name to replace
+        :type chunk_name: str
+        :param filename: external filename to import
+        :type filename: Path
+        :raises NotImplementedError: if importer type is not managed yet
+        :raises RuntimeError: if external file content is not readable
         """
-        if isinstance(p, str):
-            if any(f'.{x}{self.REFERENCE_QUALIFIER}' in p for x in self.KNOWN_EXTENSIONS):
-                return True
-        return False
+
+        extension = filename.suffix.replace('.', '')
+        if extension in self.KNOWN_EXTENSIONS:
+            sub_cfg = XConfig(filename=filename)
+            if importer.type == ImporterType.IMPORT_ROOT:
+                pydash.set_(self, chunk_name, sub_cfg.root_content)
+            elif importer.type == ImporterType.IMPORT:
+                pydash.set_(self, chunk_name, sub_cfg)
+            else:
+                raise NotImplementedError(f"Importer type {importer.type} not implemented yet!")
+        else:
+            try:
+                content = open(filename, 'r').read()
+                pydash.set_(self, chunk_name, content)
+            except UnicodeDecodeError:
+                raise RuntimeError(f'Error reading content of file: {str(filename)}. Is this a binary file?')
+
+    def _deep_parse_for_environ(self, chunks: Sequence[Tuple[str, Any]]):
+        """ Deep visit of dictionary replacing environment variables if any
+
+        :param chunks: chunks to visit
+        :type chunks: Sequence[Tuple[str, Any]]
+        :raises NotImplementedError: Importer type not found
+        :raises OSError: replace file not found
+        """
+
+        env_to_replace = {}
+        for chunk_name, value in chunks:
+            if not isinstance(value, str):
+                continue
+            placeholder = Placeholder.from_string(value)
+            if placeholder is not None:
+                if placeholder.is_valid():
+                    if placeholder.type == PlaceholderType.ENV:
+                        if placeholder.name in os.environ:
+                            env_to_replace[placeholder.name] = os.environ.get(placeholder.name)
+
+        self.replace_variables_map(env_to_replace)
 
     def to_dict(self, discard_private_qualifiers: bool = True) -> Dict:
         """
@@ -217,9 +289,9 @@ class XConfig(Box):
         """
         out_dict = dict(self)
         for k, v in out_dict.items():
-            if v is self:
-                out_dict[k] = out_dict
-            elif isinstance(v, Box):
+            # if v is self:
+            #     out_dict[k] = out_dict
+            if isinstance(v, Box):
                 out_dict[k] = self.decode(v.to_dict())
             elif isinstance(v, BoxList):
                 out_dict[k] = self.decode(v.to_list())
@@ -237,6 +309,7 @@ class XConfig(Box):
 
     def available_placeholders(self) -> Dict[str, Placeholder]:
         """ Retrieves the available placeholders list
+
         :return: list of found (str,str) pairs
         :rtype: Tuple[str,str]
         """
@@ -267,13 +340,15 @@ class XConfig(Box):
             table.add_column("Placeholder", style="dim")
             table.add_column("Name")
             table.add_column("Type")
+            table.add_column("Options")
+            table.add_column("Default")
 
             header = "*** Incomplete Configuration, Placeholders found! ***"
             rich.print(Markdown(f"# {header}"))
 
             for k, p in placeholders.items():
                 if p.is_valid():
-                    table.add_row(k, p.name, p.plain_type)
+                    table.add_row(k, p.name, p.plain_type, '|'.join(p.options), p.default_value)
 
             console.print(table)
 
@@ -284,22 +359,22 @@ class XConfig(Box):
         return True
 
     @classmethod
-    def from_dict(cls, d: dict) -> 'XConfig':
+    def from_dict(cls, d: dict, **kwargs) -> 'XConfig':
         """ Creates XConfig from a plain dictionary
         : param d: input dictionary
         : type d: dict
         : return: built XConfig
         : rtype: XConfig
         """
-        cfg = XConfig()
-        cfg.update(Box(d))
+        cfg = XConfig(filename=None, plain_dict=d, **kwargs)
         return cfg
 
     @classmethod
     def _walk(cls,
               d: Dict, path: Sequence = None,
               chunks: Sequence = None,
-              discard_private_qualifiers: bool = True) -> Sequence[Tuple[str, Any]]:
+              discard_private_qualifiers: bool = True,
+              use_dot_notation: bool = True) -> Sequence[Tuple[str, Any]]:
         """ Deep visit of dictionary building a plain sequence of pairs(key, value) where key has a pydash notation
         : param d: input dictionary
         : type d: Dict
@@ -309,6 +384,8 @@ class XConfig(Box):
         : type chunks: Sequence, optional
         : param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
         : type discard_private_qualifiers: bool, optional
+        : param use_dot_notation: True to use pydash dot notation, False to use list of str notation, defaults to True
+        : type use_dot_notation: bool
         : return: sequence of retrieved pairs
         : rtype: Sequence[Tuple[str, Any]]
         """
@@ -317,20 +394,27 @@ class XConfig(Box):
             path, chunks, root = [], [], True
         if isinstance(d, dict):
             for k, v in d.items():
+                path.append(k)
                 if isinstance(v, dict) or isinstance(v, list):
-                    path.append(k)
-                    cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers)
-                    path.pop()
+                    cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=use_dot_notation)
                 else:
-                    path.append(k)
-                    chunk_name = ".".join(map(str, path))
+                    chunk = list(map(str, path))
+                    chunk_name = ".".join(chunk)
                     if not(discard_private_qualifiers and chunk_name.startswith(cls.PRIVATE_QUALIFIER)):
-                        chunks.append((chunk_name, v))
-                    path.pop()
+                        if use_dot_notation:
+                            chunks.append((chunk_name, v))
+                        else:
+                            chunks.append((chunk, v))
+                path.pop()
         elif isinstance(d, list):
             for idx, v in enumerate(d):
                 path.append(str(idx))
-                cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers)
+                cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=use_dot_notation)
                 path.pop()
+        else:
+            chunk = list(map(str, path))
+            if use_dot_notation:
+                chunk = ".".join(chunk)
+            chunks.append((chunk, d))
         if root:
             return chunks
