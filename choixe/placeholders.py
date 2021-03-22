@@ -14,6 +14,7 @@ class PlaceholderType(Enum):
     PATH = auto()
     DATE = auto()
     ENV = auto()
+    OBJECT = auto()
 
     @classmethod
     def values(cls):
@@ -50,6 +51,8 @@ class PlaceholderType(Enum):
             return value
         elif tp == PlaceholderType.ENV:
             return str(value)
+        elif tp == PlaceholderType.OBJECT:
+            return value
         else:
             raise NotImplementedError(f'No cast for type [{tp}] on [{value}]')
 
