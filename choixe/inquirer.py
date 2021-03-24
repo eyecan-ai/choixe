@@ -1,4 +1,4 @@
-from typing import Any, Dict, Sequence, Union, cast
+from typing import Any, Dict, Sequence, Union
 import inquirer
 from choixe.configurations import XConfig
 from choixe.placeholders import Placeholder, PlaceholderType
@@ -17,14 +17,15 @@ class XInquirer(object):
         :return: either the value can be casted to the specified type or not
         :rtype: bool
         """
-        
+
         try:
             if placeholder_type == PlaceholderType.BOOL:
                 return value is True or value is False
             else:
                 PlaceholderType.cast(value, placeholder_type)
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     @classmethod
@@ -39,10 +40,10 @@ class XInquirer(object):
         """
 
         message = f'{placeholder.name} ({placeholder.plain_type})'
-        validation = lambda _, x: cls.safe_cast_placeholder(x, placeholder.type)
+        def validation(_, x): return cls.safe_cast_placeholder(x, placeholder.type)
 
         if len(placeholder.options) > 0 or placeholder.type == PlaceholderType.BOOL:
-            
+
             if placeholder.type == PlaceholderType.BOOL:
                 choices = [True, False]
                 default = placeholder.default_value

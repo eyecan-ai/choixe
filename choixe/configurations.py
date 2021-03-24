@@ -1,11 +1,6 @@
-from dataclasses import field
 import os
-
-from numpy.lib.function_base import place
 from choixe.importers import Importer, ImporterType
 from choixe.placeholders import Placeholder, PlaceholderType
-from choixe.directives import DirectiveAT, DirectiveFactory
-from enum import Enum, auto
 from box.from_file import converters
 from box import box_from_file, Box, BoxList
 import numpy as np
@@ -13,7 +8,6 @@ import pydash
 from typing import Any, Dict, List, Sequence, Tuple, Union
 from schema import Schema
 from pathlib import Path
-import re
 
 
 class XConfig(Box):
@@ -139,7 +133,8 @@ class XConfig(Box):
         """ Builds a plain view of dictionary with pydash list of str notation
         :param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
         :type discard_private_qualifiers: bool, optional
-        :return: list of pairs (key, value) where key is a list of str pydash key (e.g. d['one']['two']['three'] -> ['one', 'two', 'three'] )
+        :return: list of pairs (key, value) where key is a list of str pydash key
+        (e.g. d['one']['two']['three'] -> ['one', 'two', 'three'] )
         :rtype: Sequence[Tuple[List[str], Any]]
         """
         return self._walk(self, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=False)
@@ -220,7 +215,7 @@ class XConfig(Box):
             if importer is not None:
                 if importer.is_valid():
 
-                    n_references = value.count(self.REFERENCE_QUALIFIER)
+                    # n_references = value.count(self.REFERENCE_QUALIFIER)
 
                     p = Path(importer.path)  # Path(value.replace(self.REFERENCE_QUALIFIER, ''))
                     if self._filename is not None and not p.is_absolute():
@@ -396,7 +391,13 @@ class XConfig(Box):
             for k, v in d.items():
                 path.append(k)
                 if isinstance(v, dict) or isinstance(v, list):
-                    cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=use_dot_notation)
+                    cls._walk(
+                        v,
+                        path=path,
+                        chunks=chunks,
+                        discard_private_qualifiers=discard_private_qualifiers,
+                        use_dot_notation=use_dot_notation
+                    )
                 else:
                     chunk = list(map(str, path))
                     chunk_name = ".".join(chunk)
@@ -409,7 +410,13 @@ class XConfig(Box):
         elif isinstance(d, list):
             for idx, v in enumerate(d):
                 path.append(str(idx))
-                cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=use_dot_notation)
+                cls._walk(
+                    v,
+                    path=path,
+                    chunks=chunks,
+                    discard_private_qualifiers=discard_private_qualifiers,
+                    use_dot_notation=use_dot_notation
+                )
                 path.pop()
         else:
             chunk = list(map(str, path))

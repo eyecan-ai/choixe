@@ -1,5 +1,4 @@
 import os
-import rich
 from choixe.directives import DirectiveAT
 from choixe.placeholders import Placeholder
 from typing import Sequence, Union
@@ -78,7 +77,9 @@ def complex_data():
         generate_placeholder('v_with_dots_1'),
         generate_placeholder('v_with_dots_2'),
         generate_placeholder('v_with_dots_3'),
-        generate_placeholder('v_12', 'object')
+        generate_placeholder('v_12', 'object'),
+        generate_placeholder('v_13', 'cfg'),
+        generate_placeholder('v_14', 'cfg_root'),
     ]
 
     sample_dict = {
@@ -138,6 +139,8 @@ def complex_data():
                 'with.dots': placeholders[13]
             },
             'placeholder_object': placeholders[14],
+            'placeholder_cfg': placeholders[15],
+            'placeholder_cfg_root': placeholders[16],
         }
     }
 

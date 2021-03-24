@@ -1,0 +1,3 @@
+cfg:
+  hello: 1
+  world: "alpha"

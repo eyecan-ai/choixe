@@ -35,6 +35,10 @@ class Directive(ABC):
         return self._args
 
     @property
+    def kwargs(self):
+        return self._kwargs
+
+    @property
     def default_value(self):
         return self._default_value
 
@@ -44,12 +48,14 @@ class Directive(ABC):
             self._tokens = self.tokenize(value)
             self._label = self._tokens['label'].lower()
             self._args = self._tokens['args']
+            self._kwargs = self._tokens['kwargs']
             self._default_value = self._tokens['default_value']
         else:
             self._valid = False
             self._tokens = {}
             self._label = ''
             self._args = []
+            self._kwargs = {}
             self._default_value = None
 
 
@@ -79,21 +85,26 @@ class DirectiveAT(Directive):
         label = values[0]
         args = values[1].split(',') if len(values) > 1 else []
 
-        default_token = f'{cls.DEFAULT_KEY}='
+        # default_token = f'{cls.DEFAULT_KEY}='
 
-        # pick default arg
-        defaults = [x for x in args if default_token in x]
-        # pick all but defautl arg
-        args = [x for x in args if default_token not in x]
+        kwargs = {}
+        new_args = []
+        for a in args:
+            if '=' in a:
+                key, value = [x.strip() for x in a.split('=')]
+                kwargs[key] = value
+            else:
+                new_args.append(a)
 
-        # set default value if any
+        # # set default value if any
         default_value = None
-        if len(defaults) > 0:
-            default_value = defaults[0].replace(default_token, '')
+        if cls.DEFAULT_KEY in kwargs:
+            default_value = kwargs[cls.DEFAULT_KEY]
 
         return {
             'label': label,
-            'args': args,
+            'args': new_args,
+            'kwargs': kwargs,
             'default_value': default_value
         }
 
@@ -121,3 +132,7 @@ class DirectiveConsumer(object):
     @property
     def directive(self):
         return self._directive
+
+    @property
+    def directive_class(self):
+        return self._directive.__class__

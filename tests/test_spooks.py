@@ -120,6 +120,7 @@ class TestSpookSimpleSerialization(object):
         for item in items_list:
             kwargs = item['kwargs']
             valid = item['valid']
+            print(valid)
             o_0 = SimpleUserObject__(**kwargs)
             rep_0 = o_0.serialize()
 
@@ -157,6 +158,7 @@ class TestSpookCustomSerialization(object):
             o_1 = Spook.create(rep_0, validate=True)
             assert isinstance(o_1, CustomUserObject__)
             rep_1 = o_1.serialize(validate=True)
+            print(rep_1)
             assert o_1 == o_0
 
 

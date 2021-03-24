@@ -19,5 +19,5 @@ def check(configuration_file, close):
 
     rich.print("[green]Configuration is good![/green]")
 
-    d = cfg.to_dict(discard_private_qualifiers=False)
+    # d = cfg.to_dict(discard_private_qualifiers=False)
     cfg.check_available_placeholders(close_app=close)

@@ -1,0 +1,20 @@
+first_level:
+  name: this is a name
+  alpha: '@import(cfgs/alpha.yml)'
+  beta: '@import(cfgs/beta.yml)'
+  gamma: '@import(cfgs/gamma.yml)'
+  second_level:
+    source: '@cfg(
+              SOURCE, 
+              cfgs/alpha.yml, 
+              cfgs/beta.yml, 
+              cfgs/gamma.yml, 
+              default=cfgs/alpha.yml
+            )'
+    source_root: '@cfg_root(
+              SOURCE_ROOT, 
+              cfgs/alpha.yml, 
+              cfgs/beta.yml, 
+              cfgs/gamma.yml, 
+              default=cfgs/gamma.yml
+            )'
