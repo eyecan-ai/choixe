@@ -77,7 +77,8 @@ def complex_data():
         generate_placeholder('v_with_dots_0'),
         generate_placeholder('v_with_dots_1'),
         generate_placeholder('v_with_dots_2'),
-        generate_placeholder('v_with_dots_3')
+        generate_placeholder('v_with_dots_3'),
+        generate_placeholder('v_12', 'object')
     ]
 
     sample_dict = {
@@ -135,7 +136,8 @@ def complex_data():
             'key.with...many.....dots': placeholders[11],
             'nested.key': {
                 'with.dots': placeholders[13]
-            }
+            },
+            'placeholder_object': placeholders[14],
         }
     }
 
