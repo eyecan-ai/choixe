@@ -19,7 +19,7 @@ def data_folder():
     return os.path.join(dirname, 'sample_data')
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='function')
 def sample_configurations_data(data_folder):
     configurations_folder = Path(data_folder) / 'configurations'
     return [

@@ -369,6 +369,10 @@ class TestXConfigEnvironmentVariable(object):
         conf = XConfig.from_dict(sample_dict, replace_environment_variables=True)
         assert len(conf.available_placeholders()) == len(placeholders)
 
+        for envv in environment_variables:
+            pl = Placeholder.from_string(envv)
+            del os.environ[pl.name]
+
 
 class TestXConfigValidate(object):
 
@@ -393,3 +397,116 @@ class TestXConfigValidate(object):
         with pytest.raises(SchemaMissingKeyError):
             conf.validate()
         assert not conf.is_valid()
+
+
+class TestXConfigCopy(object):
+
+    def test_copy(self, sample_configurations_data):
+
+        for config in sample_configurations_data:
+            filename = config['filename']
+            xcfg = XConfig(filename=filename, no_deep_parse=True)
+            print("#"*10)
+            print(filename)
+            print(xcfg)
+            xcfg_copy = xcfg.copy()
+            xcfg_copy.deep_parse()
+            xcfg_correct = XConfig(filename=filename)
+            assert not DeepDiff(xcfg_correct.to_dict(), xcfg_copy.to_dict())
+            assert xcfg_copy == xcfg_correct
+
+
+class TestXConfigDeepSet(object):
+
+    def test_deepset(self):
+
+        cfg = {
+            'l1': 'L1',
+            'l2': {
+                'l2_0': 'L20',
+                'l2_1': 'L21',
+            },
+            'l3': {
+                'l3_0': {
+                    'l3_0_0': 'L300',
+                    'l3_0_1': 'L301',
+                    'l3_0_2': 'L302',
+                }
+            }
+        }
+
+        xcfg = XConfig.from_dict(cfg)
+
+        for k, old_value in xcfg.chunks_as_lists():
+            row_dict = {}
+            pydash.set_(row_dict, k, old_value)
+
+            xrow_dict = XConfig.from_dict(row_dict)
+            for newk, newv in xrow_dict.chunks_as_lists():
+
+                # VALID KEYS
+                # Try to replace present keys only with ONLY_VALID_KEYS = TRUE, should be equal!
+                new_xcfg = xcfg.copy()
+                new_xcfg.deep_set(newk, newv, only_valid_keys=True)
+                assert not DeepDiff(xcfg.to_dict(), new_xcfg.to_dict())
+
+                # Try to replace present keys only with ONLY_VALID_KEYS = FALSE, should be equal!
+                new_xcfg = xcfg.copy()
+                new_xcfg.deep_set(newk, newv, only_valid_keys=False)
+                assert not DeepDiff(xcfg.to_dict(), new_xcfg.to_dict())
+
+                # INVALID KEYS
+                new_keys = ['xxIMPOSSIBLE_KEY'] * 10
+                # Try to replace not present keys but ONLY_VALID_KEYS = TRUE, should be equal!
+                new_xcfg = xcfg.copy()
+                new_xcfg.deep_set(new_keys, newv, only_valid_keys=True)
+                assert not DeepDiff(xcfg.to_dict(), new_xcfg.to_dict())
+
+                # Try to replace not present keys but ONLY_VALID_KEYS = False, should be different!
+                new_xcfg = xcfg.copy()
+                new_xcfg.deep_set(new_keys, newv, only_valid_keys=False)
+                assert DeepDiff(xcfg.to_dict(), new_xcfg.to_dict())
+
+    def test_deep_update(self):
+
+        cfg = {
+            'l1': 'L1',
+            'l2': {
+                'l2_0': 'L20',
+                'l2_1': 'L21',
+            },
+            'l3': {
+                'l3_0': {
+                    'l3_0_0': 'L300',
+                    'l3_0_1': 'L301',
+                    'l3_0_2': 'L302',
+                }
+            }
+        }
+
+        cfg_to_replace = {
+            'l3': {
+                'l3_0': {
+                    'l3_0_2': 'NEW_L302',
+                }
+            },
+            'not_present_key': {
+                'depth': {
+                    'alpha': 'alpha'
+                }
+            }
+        }
+
+        xcfg = XConfig.from_dict(cfg)
+        xcfg_to_replace = XConfig.from_dict(cfg_to_replace)
+
+        # No Full merge
+        new_cfg = xcfg.copy()
+        new_cfg.deep_update(xcfg_to_replace, full_merge=False)
+        assert len(xcfg.chunks_as_lists()) == len(new_cfg.chunks_as_lists())
+        assert DeepDiff(xcfg.to_dict(), new_cfg.to_dict())
+
+        # Full merge
+        new_cfg = xcfg.copy()
+        new_cfg.deep_update(xcfg_to_replace, full_merge=True)
+        assert len(xcfg.chunks_as_lists()) < len(new_cfg.chunks_as_lists())

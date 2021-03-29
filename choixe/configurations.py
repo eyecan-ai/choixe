@@ -30,6 +30,7 @@ class XConfig(Box):
         # options
         replace_env_variables = kwargs.get('replace_environment_variables', True)
         _dict = kwargs.get('plain_dict', None)
+        no_deep_parse = kwargs.get('no_deep_parse', False)
 
         self._filename = None
 
@@ -41,7 +42,22 @@ class XConfig(Box):
             self.update(_dict)
 
         self._schema = None
-        self.deep_parse(replace_environment_variables=replace_env_variables)
+
+        if not no_deep_parse:
+            self.deep_parse(replace_environment_variables=replace_env_variables)
+
+    def copy(self) -> 'XConfig':
+        """ Prototype copy
+
+        :return: deep copy of source XConfig
+        :rtype: XConfig
+        """
+
+        new_xconfig = XConfig(filename=None)
+        new_xconfig._filename = self._filename
+        new_xconfig._schema = self._schema
+        new_xconfig.update(self.to_dict(discard_private_qualifiers=True))
+        return new_xconfig
 
     @property
     def root_content(self) -> Union[None, Any]:
@@ -154,16 +170,39 @@ class XConfig(Box):
             return placeholder.is_valid()
         return False
 
-    def deep_set(self, full_key: str, value: any):
-        """ Sets value based on full path key (dot notation like 'a.b.0.d')
+    def deep_set(self, full_key: Union[str, list], value: any, only_valid_keys: bool = True):
+        """ Sets value based on full path key (dot notation like 'a.b.0.d' or list ['a','b','0','d'])
 
-        :param full_key: full path key
-        :type full_key: str
+        :param full_key: full path key as dotted string or list of chunks
+        :type full_key: str | list
         :param value: value to set
         :type value: any
+        :param only_valid_keys: TRUE to avoid set on not present keys
+        :type only_valid_keys: bool
         """
 
-        pydash.set_(self, full_key, value)
+        if only_valid_keys:
+            if pydash.has(self, full_key):
+                pydash.set_(self, full_key, value)
+        else:
+            print("SERTTING", full_key)
+            pydash.set_(self, full_key, value)
+
+    def deep_update(self, other: 'XConfig', full_merge: bool = False):
+        """ Updates current confing in depth, based on keys of other input XConfig.
+        It is used to replace nested keys with new ones, but can also be used as a merge
+        of two completely different XConfig if `full_merge`=True
+
+
+        :param other: other XConfig to use as data source
+        :type other: XConfig
+        :param full_merge: FALSE to replace only the keys that are actually present
+        :type full_merge: bool
+        """
+
+        other_chunks = other.chunks_as_lists(discard_private_qualifiers=True)
+        for key, new_value in other_chunks:
+            self.deep_set(key, new_value, only_valid_keys=not full_merge)
 
     def replace_variable(self, old_value: str, new_value: str):
         """ Replaces target variables with custom new value
