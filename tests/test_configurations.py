@@ -7,7 +7,7 @@ from box.box_list import BoxList
 import numpy as np
 from box.box import Box
 from deepdiff import DeepDiff
-from schema import Schema, Or, Regex, SchemaMissingKeyError
+from schema import Schema, Or, Regex, SchemaMissingKeyError, Use
 
 import pydash
 from pathlib import Path
@@ -510,3 +510,33 @@ class TestXConfigDeepSet(object):
         new_cfg = xcfg.copy()
         new_cfg.deep_update(xcfg_to_replace, full_merge=True)
         assert len(xcfg.chunks_as_lists()) < len(new_cfg.chunks_as_lists())
+
+
+class TestXConfigValidateWithReplace(object):
+
+    def test_validate_with_replace(self):
+
+        for replace in [True, False]:
+            cfg = {
+                'one': {
+                    's0': '1',
+                    's1': '22.2',
+                    's2': 'True'
+                }
+            }
+
+            conf = XConfig.from_dict(cfg)
+
+            schema = Schema({
+                'one': {
+                    's0': Use(int),
+                    's1': Use(float),
+                    's2': Use(bool),
+                }
+            })
+            conf.set_schema(schema)
+            conf.validate(replace=replace)
+
+            assert isinstance(conf.one.s0, int) == replace
+            assert isinstance(conf.one.s1, float) == replace
+            assert isinstance(conf.one.s2, bool) == replace

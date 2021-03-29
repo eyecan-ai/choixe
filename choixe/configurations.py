@@ -83,10 +83,17 @@ class XConfig(Box):
             assert isinstance(s, Schema), "schema is not a valid Schema object!"
         self._schema: Schema = s
 
-    def validate(self):
-        """ Validate internal schema if any """
+    def validate(self, replace: bool = True):
+        """ Validate internal schema if any
+
+        :param replace: TRUE to replace internal dictionary with force-validated fields (e.g. Schema.Use)
+        :type replace: bool
+        """
+
         if self.get_schema() is not None:
-            self.get_schema().validate(self.to_dict())
+            new_dict = self.get_schema().validate(self.to_dict())
+            if replace:
+                self.update(new_dict)
 
     def is_valid(self) -> bool:
         """ Check for schema validity
