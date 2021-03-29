@@ -192,7 +192,6 @@ class XConfig(Box):
             if pydash.has(self, full_key):
                 pydash.set_(self, full_key, value)
         else:
-            print("SERTTING", full_key)
             pydash.set_(self, full_key, value)
 
     def deep_update(self, other: 'XConfig', full_merge: bool = False):
