@@ -84,6 +84,10 @@ class XInquirer(object):
         return unique_phs
 
     @classmethod
+    def _system_prompt(cls, questions: Sequence[Union[inquirer.Text, inquirer.List]]) -> dict:
+        return inquirer.prompt(questions)
+
+    @classmethod
     def prompt(cls, xconfig: XConfig, close_app: bool = True) -> XConfig:
         """ Prompts the placeholders of an xconfig and fill them
         with the user answers, it returns a copy of the original xconfig
@@ -102,7 +106,8 @@ class XInquirer(object):
         unique_phs = cls.unique_placeholders_with_order(xconfig.available_placeholders())
         # user interaction
         questions = [cls.placeholder_to_question(x) for x in unique_phs]
-        answers = inquirer.prompt(questions)
+        answers = cls._system_prompt(questions)
+        print("ANSW", answers)
         # replaces placeholders with inquirer answers
         xconfig.replace_variables_map(answers)
         xconfig.check_available_placeholders(close_app=close_app)

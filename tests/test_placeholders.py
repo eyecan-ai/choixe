@@ -1,3 +1,4 @@
+import pytest
 from choixe.importers import Importer
 from choixe.configurations import XConfig
 from choixe.placeholders import Placeholder
@@ -46,13 +47,14 @@ class TestCFGPlaceholders:
             root_cfg = {
                 'first_level': 1,
                 'second': {
-                    'second_1': f'@cfg(TO_IMPORT,{fname})',
-                    'second_2': f'@cfg_root(TO_IMPORT_ROOT,{fname})',
+                    'second.1': f'@cfg(TO_IMPORT,{fname})',
+                    'second.2': f'@cfg_root(TO_IMPORT_ROOT,{fname})',
                 }
             }
             print(root_cfg)
 
             root_cfg = XConfig.from_dict(root_cfg)
+            copy_cfg = root_cfg.copy()
 
             assert len(root_cfg.available_placeholders()) == 2
 
@@ -69,6 +71,11 @@ class TestCFGPlaceholders:
 
             assert len(root_cfg.available_placeholders()) == 0
 
-            print("NEW_CFG", root_cfg)
+            print("\nNEW_CFG", root_cfg)
             root_cfg.deep_parse()
-            print("NEW_CFG", root_cfg)
+            print("\nNEW_CFG", root_cfg)
+
+            new_keys = [x[0] for x in root_cfg.chunks_as_tuples(discard_private_qualifiers=True)]
+            old_keys = [x[0] for x in copy_cfg.chunks_as_tuples(discard_private_qualifiers=True)]
+
+            assert len(new_keys) > len(old_keys)

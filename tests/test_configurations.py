@@ -219,7 +219,7 @@ class TestXConfig(object):
 
         subtitutions_values = {}
         for k in to_be_raplaced_keys:
-            random_name = k + f".{cfg_extension}"  # {XConfig.REFERENCE_QUALIFIER}"
+            random_name = k + f".{cfg_extension}"
             random_name = DirectiveAT.generate_directive_string('import', [random_name])
             subtitutions_values[random_name] = pydash.get(volatile_dict, k)
 
@@ -272,9 +272,8 @@ class TestXConfig(object):
 
         subtitutions_values = {}
         for k in to_be_raplaced_keys:
-            random_name = k + f".{cfg_extension}"  # {XConfig.REFERENCE_QUALIFIER}"
+            random_name = k + f".{cfg_extension}"
             random_name = DirectiveAT.generate_directive_string('import_root', [random_name])
-            # random_name = k + f".{cfg_extension}{XConfig.REFERENCE_QUALIFIER}{XConfig.REFERENCE_QUALIFIER}"
             subtitutions_values[random_name] = pydash.get(volatile_dict, k)
 
             pydash.set_(volatile_dict, k, random_name)
@@ -290,7 +289,6 @@ class TestXConfig(object):
                 output_filename = generic_temp_folder / directive.args[0]
             else:
                 output_filename = generic_temp_folder / directive_value
-            # output_filename = generic_temp_folder / output_filename.replace(f'{XConfig.REFERENCE_QUALIFIER}', '')
             store_cfg(output_filename, d)
             saved_cfgs.append(output_filename)
 
@@ -331,7 +329,7 @@ class TestXConfigReplace(object):
                 conf.check_available_placeholders(close_app=True)
             conf.replace_variables_map(to_replace)
 
-            chunks = conf.chunks()
+            chunks = conf.chunks_as_lists()
             for key, value in chunks:
                 if not isinstance(value, Box) and not isinstance(value, BoxList):
                     assert value not in to_replace.keys()
@@ -414,6 +412,28 @@ class TestXConfigCopy(object):
             xcfg_correct = XConfig(filename=filename)
             assert not DeepDiff(xcfg_correct.to_dict(), xcfg_copy.to_dict())
             assert xcfg_copy == xcfg_correct
+
+
+class TestXConfigChunksView(object):
+
+    def test_chunks_view(self, sample_configurations_data):
+
+        for config in sample_configurations_data:
+            filename = config['filename']
+            xcfg = XConfig(filename=filename, no_deep_parse=True)
+
+            assert len(xcfg.chunks_as_lists()) > 0
+            assert len(xcfg.chunks_as_lists()) == len(xcfg.chunks_as_tuples())
+            assert len(xcfg.chunks()) == len(xcfg.chunks_as_tuples())
+
+            ls = xcfg.chunks_as_lists()
+            ts = xcfg.chunks_as_tuples()
+
+            for idx in range(len(ls)):
+                l, _ = ls[idx]
+                t, _ = ts[idx]
+                for kidx in range(len(l)):
+                    assert l[kidx] == t[kidx]
 
 
 class TestXConfigDeepSet(object):
