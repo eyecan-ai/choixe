@@ -1,5 +1,4 @@
 from typing import Callable, Sequence
-import uuid
 import pika
 import pickle
 

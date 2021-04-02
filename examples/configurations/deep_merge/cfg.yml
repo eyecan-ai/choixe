@@ -1,0 +1,11 @@
+one:
+  s0: 's0'
+  s1: 22.2
+  s3: True
+two:
+  - 'two_1'
+  - 'two_2'
+three:
+  inner:
+    alpha: 'alpha'
+    beta: 'beta'

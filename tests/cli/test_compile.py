@@ -43,6 +43,7 @@ def test_compile_wrong(sample_configurations_data, tmpdir):
     for cfg_data in sample_configurations_data:
         filename = Path(str(cfg_data['filename']) + "@IMPOSSIBLE_ST3ING!")
         has_placeholders = cfg_data['has_placeholders']
+        print(has_placeholders)
 
         outfile = Path(tmpdir) / f'_copy_{Path(filename).name}'
 

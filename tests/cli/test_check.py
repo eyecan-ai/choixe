@@ -23,6 +23,7 @@ def test_check_wrong(sample_configurations_data):
     for cfg_data in sample_configurations_data:
         filename = Path(str(cfg_data['filename']) + "@IMPOSSIBLE_ST3ING!")
         has_placeholders = cfg_data['has_placeholders']
+        print(has_placeholders)
 
         result = runner.invoke(check, ['-c', filename])
         assert result.exit_code == 1
