@@ -1,11 +1,6 @@
-from dataclasses import field
 import os
-
-from numpy.lib.function_base import place
 from choixe.importers import Importer, ImporterType
 from choixe.placeholders import Placeholder, PlaceholderType
-from choixe.directives import DirectiveAT, DirectiveFactory
-from enum import Enum, auto
 from box.from_file import converters
 from box import box_from_file, Box, BoxList
 import numpy as np
@@ -13,13 +8,10 @@ import pydash
 from typing import Any, Dict, List, Sequence, Tuple, Union
 from schema import Schema
 from pathlib import Path
-import re
+import copy
 
 
 class XConfig(Box):
-    PRIVATE_QUALIFIER = '_'
-    REFERENCE_QUALIFIER = '@'
-    REPLACE_QUALIFIER = '$'
     KNOWN_EXTENSIONS = converters.keys()
     PRIVATE_KEYS = ['_filename', '_schema']
 
@@ -36,6 +28,7 @@ class XConfig(Box):
         # options
         replace_env_variables = kwargs.get('replace_environment_variables', True)
         _dict = kwargs.get('plain_dict', None)
+        no_deep_parse = kwargs.get('no_deep_parse', False)
 
         self._filename = None
 
@@ -47,7 +40,22 @@ class XConfig(Box):
             self.update(_dict)
 
         self._schema = None
-        self.deep_parse(replace_environment_variables=replace_env_variables)
+
+        if not no_deep_parse:
+            self.deep_parse(replace_environment_variables=replace_env_variables)
+
+    def copy(self) -> 'XConfig':
+        """ Prototype copy
+
+        :return: deep copy of source XConfig
+        :rtype: XConfig
+        """
+
+        new_xconfig = XConfig(filename=None)
+        new_xconfig.update(self.to_dict(discard_private_qualifiers=True))
+        new_xconfig._filename = self._filename
+        new_xconfig._schema = self._schema
+        return new_xconfig
 
     @property
     def root_content(self) -> Union[None, Any]:
@@ -73,10 +81,17 @@ class XConfig(Box):
             assert isinstance(s, Schema), "schema is not a valid Schema object!"
         self._schema: Schema = s
 
-    def validate(self):
-        """ Validate internal schema if any """
+    def validate(self, replace: bool = True):
+        """ Validate internal schema if any
+
+        :param replace: TRUE to replace internal dictionary with force-validated fields (e.g. Schema.Use)
+        :type replace: bool
+        """
+
         if self.get_schema() is not None:
-            self.get_schema().validate(self.to_dict())
+            new_dict = self.get_schema().validate(self.to_dict())
+            if replace:
+                self.update(new_dict)
 
     def is_valid(self) -> bool:
         """ Check for schema validity
@@ -126,6 +141,26 @@ class XConfig(Box):
         else:
             return data
 
+    def chunks_as_lists(self, discard_private_qualifiers: bool = True) -> Sequence[Tuple[List[str], Any]]:
+        """ Builds a plain view of dictionary with pydash list of str notation
+        :param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
+        :type discard_private_qualifiers: bool, optional
+        :return: list of pairs (key, value) where key is a list of str pydash key
+        (e.g. d['one']['two']['three'] -> ['one', 'two', 'three'] )
+        :rtype: Sequence[Tuple[List[str], Any]]
+        """
+        return self._walk(self, discard_private_qualifiers=discard_private_qualifiers)
+
+    def chunks_as_tuples(self, discard_private_qualifiers: bool = True) -> Sequence[Tuple[Tuple[str, ...], Any]]:
+        """ Builds a plain view of dictionary with pydash tuple of str notation
+        :param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
+        :type discard_private_qualifiers: bool, optional
+        :return: list of pairs (key, value) where key is a tuple of str pydash key
+        (e.g. d['one']['two']['three'] -> ('one', 'two', 'three') )
+        :rtype: Sequence[Tuple[Tuple[str, ...], Any]]
+        """
+        return [(tuple(x), y) for x, y in self._walk(self, discard_private_qualifiers=discard_private_qualifiers)]
+
     def chunks(self, discard_private_qualifiers: bool = True) -> Sequence[Tuple[str, Any]]:
         """ Builds a plain view of dictionary with pydash dot notation
         :param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
@@ -133,16 +168,8 @@ class XConfig(Box):
         :return: list of pairs (key, value) where key is a dot notation pydash key (e.g. d['one']['two']['three'] -> 'one.two.three' )
         :rtype: Sequence[Tuple[str, Any]]
         """
-        return self._walk(self, discard_private_qualifiers=discard_private_qualifiers)
 
-    def chunks_as_lists(self, discard_private_qualifiers: bool = True) -> Sequence[Tuple[List[str], Any]]:
-        """ Builds a plain view of dictionary with pydash list of str notation
-        :param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
-        :type discard_private_qualifiers: bool, optional
-        :return: list of pairs (key, value) where key is a list of str pydash key (e.g. d['one']['two']['three'] -> ['one', 'two', 'three'] )
-        :rtype: Sequence[Tuple[List[str], Any]]
-        """
-        return self._walk(self, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=False)
+        return [('.'.join(x), y) for x, y in self.chunks_as_lists(discard_private_qualifiers=discard_private_qualifiers)]
 
     def is_a_placeholder(self, value: any) -> bool:
         """ Checks if value is likely a placeholder
@@ -159,16 +186,38 @@ class XConfig(Box):
             return placeholder.is_valid()
         return False
 
-    def deep_set(self, full_key: str, value: any):
-        """ Sets value based on full path key (dot notation like 'a.b.0.d')
+    def deep_set(self, full_key: Union[str, list], value: any, only_valid_keys: bool = True):
+        """ Sets value based on full path key (dot notation like 'a.b.0.d' or list ['a','b','0','d'])
 
-        :param full_key: full path key
-        :type full_key: str
+        :param full_key: full path key as dotted string or list of chunks
+        :type full_key: str | list
         :param value: value to set
         :type value: any
+        :param only_valid_keys: TRUE to avoid set on not present keys
+        :type only_valid_keys: bool
         """
 
-        pydash.set_(self, full_key, value)
+        if only_valid_keys:
+            if pydash.has(self, full_key):
+                pydash.set_(self, full_key, value)
+        else:
+            pydash.set_(self, full_key, value)
+
+    def deep_update(self, other: 'XConfig', full_merge: bool = False):
+        """ Updates current confing in depth, based on keys of other input XConfig.
+        It is used to replace nested keys with new ones, but can also be used as a merge
+        of two completely different XConfig if `full_merge`=True
+
+
+        :param other: other XConfig to use as data source
+        :type other: XConfig
+        :param full_merge: FALSE to replace only the keys that are actually present
+        :type full_merge: bool
+        """
+
+        other_chunks = other.chunks_as_lists(discard_private_qualifiers=True)
+        for key, new_value in other_chunks:
+            self.deep_set(key, new_value, only_valid_keys=not full_merge)
 
     def replace_variable(self, old_value: str, new_value: str):
         """ Replaces target variables with custom new value
@@ -199,16 +248,16 @@ class XConfig(Box):
         :param replace_environment_variables: TRUE to auto replace environment variables
         :type replace_environment_variables: bool
         """
-        chunks = self.chunks()
+        chunks = self.chunks_as_lists()
         self._deep_parse_for_importers(chunks)
         if replace_environment_variables:
             self._deep_parse_for_environ(chunks)
 
-    def _deep_parse_for_importers(self, chunks: Sequence[Tuple[str, Any]]):
+    def _deep_parse_for_importers(self, chunks: Sequence[Tuple[Union[str, list], Any]]):
         """ Deep visit of dictionary replacing filename values with a new XConfig object recusively
 
         :param chunks: chunks to visit
-        :type chunks: Sequence[Tuple[str, Any]]
+        :type chunks: Sequence[Tuple[Union[str, list], Any]]
         :raises NotImplementedError: Importer type not found
         :raises OSError: replace file not found
         """
@@ -220,9 +269,7 @@ class XConfig(Box):
             if importer is not None:
                 if importer.is_valid():
 
-                    n_references = value.count(self.REFERENCE_QUALIFIER)
-
-                    p = Path(importer.path)  # Path(value.replace(self.REFERENCE_QUALIFIER, ''))
+                    p = Path(importer.path)
                     if self._filename is not None and not p.is_absolute():
                         p = self._filename.parent / p
 
@@ -231,13 +278,13 @@ class XConfig(Box):
                     else:
                         raise OSError(f'File {p} not found!')
 
-    def _import_external_file(self, importer: Importer, chunk_name: str, filename: Path):
+    def _import_external_file(self, importer: Importer, chunk_name: Union[str, list], filename: Path):
         """ Imports a generic file into cfg tree
 
         :param importer: importer directive
         :type importer: Importer
-        :param chunk_name: chunk name to replace
-        :type chunk_name: str
+        :param chunk_name: chunk name (dotted str or list of keys) to replace
+        :type chunk_name: Union[str, list]
         :param filename: external filename to import
         :type filename: Path
         :raises NotImplementedError: if importer type is not managed yet
@@ -260,11 +307,11 @@ class XConfig(Box):
             except UnicodeDecodeError:
                 raise RuntimeError(f'Error reading content of file: {str(filename)}. Is this a binary file?')
 
-    def _deep_parse_for_environ(self, chunks: Sequence[Tuple[str, Any]]):
+    def _deep_parse_for_environ(self, chunks: Sequence[Tuple[Union[str, list], Any]]):
         """ Deep visit of dictionary replacing environment variables if any
 
         :param chunks: chunks to visit
-        :type chunks: Sequence[Tuple[str, Any]]
+        :type chunks: Sequence[Tuple[Union[str, list], Any]]
         :raises NotImplementedError: Importer type not found
         :raises OSError: replace file not found
         """
@@ -287,24 +334,19 @@ class XConfig(Box):
         Turn the Box and sub Boxes back into a native python dictionary.
         :return: python dictionary of this Box
         """
-        out_dict = dict(self)
+        out_dict = copy.deepcopy(dict(self))
         for k, v in out_dict.items():
-            # if v is self:
-            #     out_dict[k] = out_dict
             if isinstance(v, Box):
                 out_dict[k] = self.decode(v.to_dict())
             elif isinstance(v, BoxList):
                 out_dict[k] = self.decode(v.to_list())
 
         if discard_private_qualifiers:
-            chunks = self.chunks(discard_private_qualifiers=False)
-            for chunk_name, value in chunks:
-                c0 = any([x for x in self.PRIVATE_KEYS if x in chunk_name])
-                c1 = any([f'.{x}' for x in self.PRIVATE_KEYS if x in chunk_name])
-                if c0 or c1:
-                    # if chunk_name in self.PRIVATE_KEYS or f'.{chunk_name}' in self.PRIVATE_KEYS:
-                    # if f'.{self.PRIVATE_QUALIFIER}' in chunk_name or chunk_name.startswith(self.PRIVATE_QUALIFIER):
-                    pydash.unset(out_dict, chunk_name)
+            chunks = self.chunks_as_lists(discard_private_qualifiers=False)
+            for key, value in chunks:
+                if any([x for x in self.PRIVATE_KEYS if x in key]):
+                    pydash.unset(out_dict, key)
+
         return out_dict
 
     def available_placeholders(self) -> Dict[str, Placeholder]:
@@ -314,11 +356,12 @@ class XConfig(Box):
         :rtype: Tuple[str,str]
         """
 
-        chunks = self.chunks(discard_private_qualifiers=True)
+        chunks = self.chunks_as_tuples(discard_private_qualifiers=True)
         placeholders = {}
         for k, v in chunks:
             if self.is_a_placeholder(v):
-                placeholders[k] = Placeholder.from_string(v)
+                key = '.'.join(k)
+                placeholders[key] = Placeholder.from_string(v)
         return placeholders
 
     def check_available_placeholders(self, close_app: bool = False) -> bool:
@@ -370,11 +413,14 @@ class XConfig(Box):
         return cfg
 
     @classmethod
+    def _add_key_to_path(cls, key_to_add: any, path: Sequence[any]):
+        path.append(str(key_to_add))
+
+    @classmethod
     def _walk(cls,
               d: Dict, path: Sequence = None,
               chunks: Sequence = None,
-              discard_private_qualifiers: bool = True,
-              use_dot_notation: bool = True) -> Sequence[Tuple[str, Any]]:
+              discard_private_qualifiers: bool = True) -> Sequence[Tuple[str, Any]]:
         """ Deep visit of dictionary building a plain sequence of pairs(key, value) where key has a pydash notation
         : param d: input dictionary
         : type d: Dict
@@ -384,8 +430,6 @@ class XConfig(Box):
         : type chunks: Sequence, optional
         : param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
         : type discard_private_qualifiers: bool, optional
-        : param use_dot_notation: True to use pydash dot notation, False to use list of str notation, defaults to True
-        : type use_dot_notation: bool
         : return: sequence of retrieved pairs
         : rtype: Sequence[Tuple[str, Any]]
         """
@@ -394,27 +438,31 @@ class XConfig(Box):
             path, chunks, root = [], [], True
         if isinstance(d, dict):
             for k, v in d.items():
-                path.append(k)
+                cls._add_key_to_path(k, path)
                 if isinstance(v, dict) or isinstance(v, list):
-                    cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=use_dot_notation)
+                    cls._walk(
+                        v,
+                        path=path,
+                        chunks=chunks,
+                        discard_private_qualifiers=discard_private_qualifiers
+                    )
                 else:
-                    chunk = list(map(str, path))
-                    chunk_name = ".".join(chunk)
-                    if not(discard_private_qualifiers and chunk_name.startswith(cls.PRIVATE_QUALIFIER)):
-                        if use_dot_notation:
-                            chunks.append((chunk_name, v))
-                        else:
-                            chunks.append((chunk, v))
+                    keys = list(map(str, path))
+                    if not(discard_private_qualifiers and any([x for x in cls.PRIVATE_KEYS if x in keys])):
+                        chunks.append((keys, v))
                 path.pop()
         elif isinstance(d, list):
             for idx, v in enumerate(d):
-                path.append(str(idx))
-                cls._walk(v, path=path, chunks=chunks, discard_private_qualifiers=discard_private_qualifiers, use_dot_notation=use_dot_notation)
+                cls._add_key_to_path(idx, path)
+                cls._walk(
+                    v,
+                    path=path,
+                    chunks=chunks,
+                    discard_private_qualifiers=discard_private_qualifiers
+                )
                 path.pop()
         else:
-            chunk = list(map(str, path))
-            if use_dot_notation:
-                chunk = ".".join(chunk)
-            chunks.append((chunk, d))
+            keys = list(map(str, path))
+            chunks.append((keys, d))
         if root:
             return chunks

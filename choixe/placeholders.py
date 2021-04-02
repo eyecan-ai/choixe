@@ -3,7 +3,7 @@
 from enum import Enum, auto
 from typing import Union
 from choixe.directives import Directive, DirectiveConsumer, DirectiveFactory
-from pathlib import Path
+from choixe.importers import Importer, ImporterType
 
 
 class PlaceholderType(Enum):
@@ -15,6 +15,8 @@ class PlaceholderType(Enum):
     DATE = auto()
     ENV = auto()
     OBJECT = auto()
+    CFG = auto()
+    CFG_ROOT = auto()
 
     @classmethod
     def values(cls):
@@ -53,6 +55,10 @@ class PlaceholderType(Enum):
             return str(value)
         elif tp == PlaceholderType.OBJECT:
             return value
+        elif tp == PlaceholderType.CFG:
+            return Importer.generate_importer_directive(ImporterType.IMPORT, value)
+        elif tp == PlaceholderType.CFG_ROOT:
+            return Importer.generate_importer_directive(ImporterType.IMPORT_ROOT, value)
         else:
             raise NotImplementedError(f'No cast for type [{tp}] on [{value}]')
 

@@ -1,7 +1,6 @@
 from enum import Enum, auto
 from typing import Union
-from choixe.directives import Directive, DirectiveConsumer, DirectiveFactory
-from pathlib import Path
+from choixe.directives import Directive, DirectiveAT, DirectiveConsumer, DirectiveFactory
 
 
 class ImporterType(Enum):
@@ -15,13 +14,6 @@ class ImporterType(Enum):
     @classmethod
     def get_type(cls, value: str) -> Union['ImporterType', None]:
         return ImporterType[value.upper()]
-
-    # @classmethod
-    # def get_type_as_string(cls, value: str) -> str:
-    #     tp = cls.get_type(value)
-    #     if isinstance(tp, ImporterType):
-    #         return tp.name
-    #     return 'None'
 
 
 class Importer(DirectiveConsumer):
@@ -53,3 +45,19 @@ class Importer(DirectiveConsumer):
         if directive:
             return Importer(directive=directive)
         return None
+
+    @property
+    def options(self):
+        if self.is_valid():
+            return self._directive.args[1:]
+        return []
+
+    @property
+    def default_value(self):
+        if self.is_valid():
+            return self._directive.default_value
+        return None
+
+    @classmethod
+    def generate_importer_directive(cls, importer_type: ImporterType, path: str):
+        return DirectiveAT.generate_directive_string(str(importer_type.name).lower(), [path])

@@ -51,3 +51,40 @@ class TestInquirer(object):
         assert unique_phs[3].name == 'a_str1'
         assert unique_phs[4].name == 'a_str2'
         assert unique_phs[5].name == 'a_str3'
+
+    def test_prompt(self, monkeypatch):
+
+        d = {
+            'a_int': '@int(a_int)',
+            'another_int': '@int(a_int)',
+            'a_float': '@float(a_float)',
+            'a_bool': '@bool(a_bool)',
+            'a_str1': '@str(a_str1)',
+            'a_str2': '@str(a_str2,hello,hi)',
+            'a_str3': '@str(a_str3,one,two,three,default=one)'
+        }
+
+        fills = {
+            'a_int': 2,
+            'another_int': 666,
+            'a_float': 2.22,
+            'a_bool': True,
+            'a_str1': 'hello',
+            'a_str2': 'hi',
+            'a_str3': 'three'
+        }
+
+        xconfig = XConfig.from_dict(d)
+
+        import sys
+        from io import StringIO
+
+        old_prompt = XInquirer._system_prompt
+
+        def custom_prompt(questions):
+            return fills
+
+        monkeypatch.setattr(XInquirer, '_system_prompt', custom_prompt, raising=True)
+        new_xconfig = XInquirer.prompt(xconfig, close_app=False)
+
+        assert len(new_xconfig.available_placeholders()) == 0

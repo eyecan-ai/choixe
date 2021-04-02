@@ -1,4 +1,4 @@
-from typing import Any, Dict, Sequence, Union, cast
+from typing import Any, Dict, Sequence, Union
 import inquirer
 from choixe.configurations import XConfig
 from choixe.placeholders import Placeholder, PlaceholderType
@@ -17,14 +17,15 @@ class XInquirer(object):
         :return: either the value can be casted to the specified type or not
         :rtype: bool
         """
-        
+
         try:
             if placeholder_type == PlaceholderType.BOOL:
                 return value is True or value is False
             else:
                 PlaceholderType.cast(value, placeholder_type)
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     @classmethod
@@ -39,10 +40,10 @@ class XInquirer(object):
         """
 
         message = f'{placeholder.name} ({placeholder.plain_type})'
-        validation = lambda _, x: cls.safe_cast_placeholder(x, placeholder.type)
+        def validation(_, x): return cls.safe_cast_placeholder(x, placeholder.type)
 
         if len(placeholder.options) > 0 or placeholder.type == PlaceholderType.BOOL:
-            
+
             if placeholder.type == PlaceholderType.BOOL:
                 choices = [True, False]
                 default = placeholder.default_value
@@ -83,6 +84,10 @@ class XInquirer(object):
         return unique_phs
 
     @classmethod
+    def _system_prompt(cls, questions: Sequence[Union[inquirer.Text, inquirer.List]]) -> dict:
+        return inquirer.prompt(questions)
+
+    @classmethod
     def prompt(cls, xconfig: XConfig, close_app: bool = True) -> XConfig:
         """ Prompts the placeholders of an xconfig and fill them
         with the user answers, it returns a copy of the original xconfig
@@ -101,7 +106,8 @@ class XInquirer(object):
         unique_phs = cls.unique_placeholders_with_order(xconfig.available_placeholders())
         # user interaction
         questions = [cls.placeholder_to_question(x) for x in unique_phs]
-        answers = inquirer.prompt(questions)
+        answers = cls._system_prompt(questions)
+        print("ANSW", answers)
         # replaces placeholders with inquirer answers
         xconfig.replace_variables_map(answers)
         xconfig.check_available_placeholders(close_app=close_app)
