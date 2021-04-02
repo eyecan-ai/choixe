@@ -21,6 +21,27 @@ def generic_temp_folder(tmpdir_factory):
     return fn
 
 
+class PlaceholderGenerator:
+    def __init__(self, base_name: str = 'v_') -> None:
+        self.counter = 0
+        self.base_name = base_name
+
+    def create_placeholder(self, collection: Sequence, tp: str = None, others: Sequence = None):
+        args = [f'{self.base_name}{self.counter}']
+        if others is not None:
+            args.extend(others)
+        if tp is not None:
+            if len(tp) > 0:
+                p = DirectiveAT.generate_directive_string(tp, args)
+                collection.append(p)
+                return p
+
+        # Default type
+        p = DirectiveAT.generate_directive_string('str', args)
+        collection.append(p)
+        return p
+
+
 def simple_data():
     sample_dict = {
         'one': 1,
@@ -57,41 +78,18 @@ def simple_data():
 def complex_data():
     np.random.seed(666)
 
-    env_variables = [
-        generate_placeholder('v_10', 'env'),
-        generate_placeholder('v_11', 'env'),
-    ]
-
-    placeholders = [
-        generate_placeholder('v_0', 'int', [6, 7, 8, 'default=10']),
-        generate_placeholder('v_1', 'float'),
-        generate_placeholder('v_2', 'str', ['alpha', 'beta', 'gamma']),
-        generate_placeholder('v_3', 'bool'),
-        generate_placeholder('v_4'),
-        generate_placeholder('v_5', 'path'),
-        generate_placeholder('v_6', 'date'),
-        generate_placeholder('v_7', 'str', ['A', 'B', 'C', 'default=C']),
-        generate_placeholder('v_8'),
-        generate_placeholder('v_9'),
-        generate_placeholder('v_with_dots_0'),
-        generate_placeholder('v_with_dots_1'),
-        generate_placeholder('v_with_dots_2'),
-        generate_placeholder('v_with_dots_3'),
-        generate_placeholder('v_12', 'object'),
-        generate_placeholder('v_13', 'cfg'),
-        generate_placeholder('v_14', 'cfg_root'),
-    ]
+    placeholders = []
+    env_variables = []
+    pl_generator = PlaceholderGenerator()
 
     sample_dict = {
-
-        'one': placeholders[0],
+        'one': pl_generator.create_placeholder(placeholders, 'int', [6, 7, 8, 'default=10']),
         'two': np.random.randint(-50, 50, (3, 3)).tolist(),
         'three': {
             '3.1': 'TrueValue',
             '2.1': [False, False],
-
             'name': {
-                'name_1': placeholders[1],
+                'name_1': pl_generator.create_placeholder(placeholders, 'float'),
                 'name_2': 2,
                 'name_3': {
                     'this_is_a_list': [3.3, 3.3],
@@ -110,37 +108,37 @@ def complex_data():
             }
         },
         'first': {
-            'f1': placeholders[2],
+            'f1': pl_generator.create_placeholder(placeholders, 'str', ['alpha', 'beta', 'gamma']),  # placeholders[2],
             'f2': 2.22,
             'f3': [3, 3, 3, 3, 3, 3],
             'external': {
                 'ext': np.random.uniform(-2, 2, (2, 3)).tolist(),
-                'ext_name': placeholders[3],
+                'ext_name': [pl_generator.create_placeholder(placeholders, 'bool')],
             },
             'ops': {
-                'o1': placeholders[4],
-                'o2': placeholders[5],
-                'o3': placeholders[6],
-                'o4': placeholders[7],
-                'o5': placeholders[8],
-                'o6': placeholders[9]
+                'o1': pl_generator.create_placeholder(placeholders),  # placeholders[4],
+                'o2': pl_generator.create_placeholder(placeholders, 'path'),  # placeholders[5],
+                'o3': pl_generator.create_placeholder(placeholders, 'date'),  # placeholders[6],
+                'o4': pl_generator.create_placeholder(placeholders, 'str', ['A', 'B', 'C', 'default=C']),  # placeholders[7],
+                'o5': pl_generator.create_placeholder(placeholders),  # placeholders[8],
+                'o6': pl_generator.create_placeholder(placeholders),  # placeholders[9]
             },
             'env': [
-                env_variables[0],
-                env_variables[1]
+                pl_generator.create_placeholder(placeholders, 'env'),  # env_variables[0],
+                pl_generator.create_placeholder(placeholders, 'env')
             ],
             'key': {
                 'with': 120,
-                'dots': placeholders[12],
+                'dots': pl_generator.create_placeholder(placeholders, 'object'),
             },
-            'key.with.dots': placeholders[10],
-            'key.with...many.....dots': placeholders[11],
+            'key.with.dots': pl_generator.create_placeholder(placeholders),  # placeholders[10],
+            'key.with...many.....dots': pl_generator.create_placeholder(placeholders),
             'nested.key': {
-                'with.dots': placeholders[13]
+                'with.dots': pl_generator.create_placeholder(placeholders)
             },
-            'placeholder_object': placeholders[14],
-            'placeholder_cfg': placeholders[15],
-            'placeholder_cfg_root': placeholders[16],
+            'placeholder_object': pl_generator.create_placeholder(placeholders),
+            'placeholder_cfg': pl_generator.create_placeholder(placeholders, 'cfg'),  # placeholders[15],
+            'placeholder_cfg_root': pl_generator.create_placeholder(placeholders, 'cfg_root'),  # ,
         }
     }
 
@@ -151,7 +149,7 @@ def complex_data():
             'three': {
                 '3.1': str,
                 '2.1': [bool],
-                'name': dict
+                'name': dict,
             },
             'first': {
                 Regex(''): Or(str, int, list, float, dict)
@@ -176,16 +174,6 @@ def complex_data():
     }
 
 
-def generate_placeholder(name: str, tp: str = None, others: Sequence = None):
-    args = [name]
-    if others is not None:
-        args.extend(others)
-    if tp is not None:
-        if len(tp) > 0:
-            return DirectiveAT.generate_directive_string(tp, args)
-    return DirectiveAT.generate_directive_string('str', args)
-
-
 def data_to_test():
     return [
         simple_data(),
@@ -205,9 +193,12 @@ def store_cfg(filename: Union[str, Path], d: dict):
         Box(XConfig.decode(data.to_dict())).to_toml(filename)
 
 
+TESTABLE_ESTENSIONS = ['yaml', 'json', 'toml']
+
+
 class TestXConfig(object):
 
-    @pytest.mark.parametrize("cfg_extension", ['yaml', 'json', 'toml'])
+    @pytest.mark.parametrize("cfg_extension", TESTABLE_ESTENSIONS)
     @pytest.mark.parametrize("data", data_to_test())
     def test_creation(self, generic_temp_folder, data, cfg_extension):  # TODO: toml 0.10.2 needed! toml has a bug otherwise
 
@@ -259,7 +250,7 @@ class TestXConfig(object):
         with pytest.raises(OSError):
             yconf = XConfig(output_cfg_filename)
 
-    @pytest.mark.parametrize("cfg_extension", ['yaml', 'json', 'toml'])
+    @pytest.mark.parametrize("cfg_extension", TESTABLE_ESTENSIONS)
     @pytest.mark.parametrize("data", data_to_test())
     def test_creation_root_replace(self, generic_temp_folder, data, cfg_extension):
         """ Test with double @@ -> replace value with content of content
@@ -365,6 +356,9 @@ class TestXConfigEnvironmentVariable(object):
             os.environ[pl.name] = str(np.random.uniform(0, 1, (1,)))
 
         conf = XConfig.from_dict(sample_dict, replace_environment_variables=True)
+
+        import rich
+        rich.print(conf)
         assert len(conf.available_placeholders()) == len(placeholders)
 
         for envv in environment_variables:

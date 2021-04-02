@@ -413,6 +413,10 @@ class XConfig(Box):
         return cfg
 
     @classmethod
+    def _add_key_to_path(cls, key_to_add: any, path: Sequence[any]):
+        path.append(str(key_to_add))
+
+    @classmethod
     def _walk(cls,
               d: Dict, path: Sequence = None,
               chunks: Sequence = None,
@@ -434,7 +438,7 @@ class XConfig(Box):
             path, chunks, root = [], [], True
         if isinstance(d, dict):
             for k, v in d.items():
-                path.append(k)
+                cls._add_key_to_path(k, path)
                 if isinstance(v, dict) or isinstance(v, list):
                     cls._walk(
                         v,
@@ -449,7 +453,7 @@ class XConfig(Box):
                 path.pop()
         elif isinstance(d, list):
             for idx, v in enumerate(d):
-                path.append(str(idx))
+                cls._add_key_to_path(idx, path)
                 cls._walk(
                     v,
                     path=path,
