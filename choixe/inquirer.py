@@ -7,6 +7,14 @@ from choixe.placeholders import Placeholder, PlaceholderType
 class XInquirer(object):
 
     @classmethod
+    def to_bool(cls, value: Union[str, None]):
+        true_values = ['t', 'true', 'y', 'yes']
+        if value is not None and value.lower() in true_values:
+            return True
+        else:
+            return False
+
+    @classmethod
     def safe_cast_placeholder(cls, value: Any, placeholder_type: PlaceholderType) -> bool:
         """ Checks if the value can be casted to the specified type
 
@@ -19,19 +27,16 @@ class XInquirer(object):
         """
 
         try:
-            if placeholder_type == PlaceholderType.BOOL:
-                return value is True or value is False
-            else:
-                PlaceholderType.cast(value, placeholder_type)
+            PlaceholderType.cast(value, placeholder_type)
             return True
         except Exception as e:
             print(e)
             return False
 
     @classmethod
-    def placeholder_to_question(cls, placeholder: Placeholder) -> Union[inquirer.Text, inquirer.List]:
-        """ Converts a placeholder to an inquirer question (to List if the placeholder has
-        options or is boolean, Text otherwise)
+    def placeholder_to_question(cls, placeholder: Placeholder) -> Sequence[inquirer.questions.Question]:
+        """ Converts a placeholder to an inquirer question (to Confirm if the placeholder is bool,
+        to List if the placeholder has options, Text otherwise)
 
         :param placeholder: the placeholder
         :type placeholder: Placeholder
@@ -42,21 +47,16 @@ class XInquirer(object):
         message = f'{placeholder.name} ({placeholder.plain_type})'
         def validation(_, x): return cls.safe_cast_placeholder(x, placeholder.type)
 
-        if len(placeholder.options) > 0 or placeholder.type == PlaceholderType.BOOL:
-
-            if placeholder.type == PlaceholderType.BOOL:
-                choices = [True, False]
-                default = placeholder.default_value
-                if default is not None:
-                    default = True if placeholder.default_value.lower() == 'true' else False
-            else:
-                choices = placeholder.options
-                default = placeholder.default_value
-
+        if placeholder.type == PlaceholderType.BOOL:
+            question = inquirer.Confirm(placeholder.name,
+                                        message=message,
+                                        default=cls.to_bool(placeholder.default_value),
+                                        validate=validation)
+        elif len(placeholder.options) > 0:
             question = inquirer.List(placeholder.name,
                                      message=message,
-                                     choices=choices,
-                                     default=default,
+                                     choices=placeholder.options,
+                                     default=placeholder.default_value,
                                      validate=validation)
         else:
             question = inquirer.Text(placeholder.name,
@@ -100,14 +100,11 @@ class XInquirer(object):
         :rtype: XConfig
         """
 
-        # copies the xconfig
-        xconfig = XConfig.from_dict(xconfig.to_dict())
-        # gets unique placeholders preserving order
+        xconfig = xconfig.copy()
         unique_phs = cls.unique_placeholders_with_order(xconfig.available_placeholders())
         # user interaction
         questions = [cls.placeholder_to_question(x) for x in unique_phs]
         answers = cls._system_prompt(questions)
-        print("ANSW", answers)
         # replaces placeholders with inquirer answers
         xconfig.replace_variables_map(answers)
         xconfig.check_available_placeholders(close_app=close_app)
