@@ -1,10 +1,8 @@
-
 import re
 from abc import ABC
 
 
 class Directive(ABC):
-
     @classmethod
     def generate_directive_string(cls, label: str, args: list = None) -> str:
         raise NotImplementedError
@@ -46,52 +44,52 @@ class Directive(ABC):
         if self.is_directive(value):
             self._valid = True
             self._tokens = self.tokenize(value)
-            self._label = self._tokens['label'].lower()
-            self._args = self._tokens['args']
-            self._kwargs = self._tokens['kwargs']
-            self._default_value = self._tokens['default_value']
+            self._label = self._tokens["label"].lower()
+            self._args = self._tokens["args"]
+            self._kwargs = self._tokens["kwargs"]
+            self._default_value = self._tokens["default_value"]
         else:
             self._valid = False
             self._tokens = {}
-            self._label = ''
+            self._label = ""
             self._args = []
             self._kwargs = {}
             self._default_value = None
 
 
 class DirectiveAT(Directive):
-    DEFAULT_KEY = 'default'
+    DEFAULT_KEY = "default"
 
     @classmethod
     def generate_directive_string(cls, label: str, args: list = None) -> str:
         if args is None:
             args = []
-        return f'@{label}(' + ','.join(map(str, args)) + ')'
+        return f"@{label}(" + ",".join(map(str, args)) + ")"
 
     @classmethod
     def directive_pattern(cls) -> str:
-        return '[@].+[(](.+?)|[)]$'
+        return "[@].+[(](.+?)|[)]$"
 
     @classmethod
     def tokenize(cls, value: str) -> dict:
         value = value.strip()
-        value = value.replace(' ', '')
-        for ch in ['@', '(', ')']:
-            value = value.replace(ch, ' ')
-        values = value.split(' ')
+        value = value.replace(" ", "")
+        for ch in ["@", "(", ")"]:
+            value = value.replace(ch, " ")
+        values = value.split(" ")
         values = [x for x in values if len(x) > 0]
         assert len(values) >= 1
 
         label = values[0]
-        args = values[1].split(',') if len(values) > 1 else []
+        args = values[1].split(",") if len(values) > 1 else []
 
         # default_token = f'{cls.DEFAULT_KEY}='
 
         kwargs = {}
         new_args = []
         for a in args:
-            if '=' in a:
-                key, value = [x.strip() for x in a.split('=')]
+            if "=" in a:
+                key, value = [x.strip() for x in a.split("=")]
                 kwargs[key] = value
             else:
                 new_args.append(a)
@@ -102,18 +100,16 @@ class DirectiveAT(Directive):
             default_value = kwargs[cls.DEFAULT_KEY]
 
         return {
-            'label': label,
-            'args': new_args,
-            'kwargs': kwargs,
-            'default_value': default_value
+            "label": label,
+            "args": new_args,
+            "kwargs": kwargs,
+            "default_value": default_value,
         }
 
 
 class DirectiveFactory(object):
 
-    AVAILABLE_DIRECTIVES = [
-        DirectiveAT
-    ]
+    AVAILABLE_DIRECTIVES = [DirectiveAT]
 
     @classmethod
     def build_directive_from_string(cls, value: str) -> Directive:
@@ -125,7 +121,6 @@ class DirectiveFactory(object):
 
 
 class DirectiveConsumer(object):
-
     def __init__(self, directive: Directive) -> None:
         self._directive = directive
 
