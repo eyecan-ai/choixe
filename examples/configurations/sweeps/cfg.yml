@@ -1,0 +1,8 @@
+first_level:
+  name: '@sweep("name0","name1","name2")'
+  alpha: '@sweep(2, 2, 3)'
+  beta: '@sweep(1.2, 2.3, 3.3)'
+  gamma: 'alpha'
+  second_level:
+    alpha: 1.0
+    beta: 2.0
