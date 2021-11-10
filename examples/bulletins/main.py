@@ -7,6 +7,17 @@ from rich.progress import Progress
 import multiprocessing
 
 
+###########################################################
+###########################################################
+###########################################################
+# Install rabbitmq first!#
+#
+# sudo apt install rabbitmq-server
+###########################################################
+###########################################################
+###########################################################
+
+
 def fake_task(session_id: str, name: str):
 
     # Init
@@ -19,7 +30,7 @@ def fake_task(session_id: str, name: str):
 
         # Random step
         step = np.random.randint(0, 10)
-        board.hang(Bulletin(metadata={'name': name, 'step': step}))
+        board.hang(Bulletin(metadata={"name": name, "step": step}))
 
         # update total
         total += step
@@ -27,19 +38,25 @@ def fake_task(session_id: str, name: str):
             return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    tasks = {f'Task[{i}]': 0 for i in range(10)}
+    tasks = {f"Task[{i}]": 0 for i in range(10)}
     session_id = str(uuid.uuid1())
 
     # Generate Fake Tasks processes
     for task_name, _ in tasks.items():
-        multiprocessing.Process(target=fake_task, args=(session_id, task_name, )).start()
+        multiprocessing.Process(
+            target=fake_task,
+            args=(
+                session_id,
+                task_name,
+            ),
+        ).start()
 
     # Bulletin update callback
     def bulletin_update(bulletin: Bulletin):
         global tasks
-        tasks[bulletin.metadata['name']] += bulletin.metadata['step']
+        tasks[bulletin.metadata["name"]] += bulletin.metadata["step"]
 
     # Central Node Thread waiting for new bulletins
     def central_node():
@@ -53,7 +70,10 @@ if __name__ == '__main__':
     with Progress() as progress:
 
         # Generate bars
-        bars = {name: progress.add_task(f"[green]{name}...", total=100) for name, _ in tasks.items()}
+        bars = {
+            name: progress.add_task(f"[green]{name}...", total=100)
+            for name, _ in tasks.items()
+        }
 
         # Update loop
         while not progress.finished:

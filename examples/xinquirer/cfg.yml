@@ -5,3 +5,5 @@ second:
   - '@int(setup,1,10,100,1000,default=1)'
   - 'hello'
   - '@str(NAME,one,two,three,default=two)'
+  - '@date(a_date)'
+  - '@bool(a_bool, default=true)'
