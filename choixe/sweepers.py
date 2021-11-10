@@ -29,12 +29,6 @@ class Sweeper(DirectiveConsumer):
             return self._directive.label in SweeperType.values()
         return False
 
-    @property
-    def type(self):
-        if self.is_valid():
-            return SweeperType.get_type(self._directive.label)
-        return None
-
     @classmethod
     def from_string(cls, value: str) -> "Sweeper":
         directive = DirectiveFactory.build_directive_from_string(value)
@@ -47,15 +41,3 @@ class Sweeper(DirectiveConsumer):
         if self.is_valid():
             return self._directive.args[:]
         return []
-
-    @property
-    def default_value(self):
-        if self.is_valid():
-            return self._directive.default_value
-        return None
-
-    @classmethod
-    def generate_sweeper_directive(cls, sweeper_type: SweeperType, path: str):
-        return DirectiveAT.generate_directive_string(
-            str(sweeper_type.name).lower(), [path]
-        )
