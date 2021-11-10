@@ -2,7 +2,7 @@ from choixe.configurations import XConfig
 import rich
 
 
-cfg = XConfig(filename='cfg.yml')
+cfg = XConfig(filename="cfg.yml")
 
 # Checks for placeholders before replace
 rich.print("\nBefore Replace", cfg.to_dict())

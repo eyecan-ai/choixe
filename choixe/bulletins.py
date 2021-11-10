@@ -4,7 +4,6 @@ import pickle
 
 
 class Bulletin(object):
-
     def __init__(self, metadata: dict = None):
         self.metadata = metadata if metadata is not None else {}
 
@@ -12,18 +11,19 @@ class Bulletin(object):
         return pickle.dumps(self)
 
     @classmethod
-    def from_bytes(cls, b: bytes) -> 'Bulletin':
+    def from_bytes(cls, b: bytes) -> "Bulletin":
         return pickle.loads(b)
 
 
 class BulletinBoard(object):
-
-    def __init__(self, session_id: str, host: str = 'localhost') -> None:
+    def __init__(self, session_id: str, host: str = "localhost") -> None:
         super().__init__()
 
         self._host = host
         self._sessionid = session_id
-        self._connection = pika.BlockingConnection(pika.ConnectionParameters(self._host))
+        self._connection = pika.BlockingConnection(
+            pika.ConnectionParameters(self._host)
+        )
         self._channel = self._connection.channel()
         self._channel.queue_declare(queue=self._sessionid)
         self._callbacks: Sequence[Callable] = []
@@ -36,16 +36,14 @@ class BulletinBoard(object):
 
     def hang(self, bulletin: Bulletin):
         self._channel.basic_publish(
-            exchange='',
-            routing_key=self._sessionid,
-            body=bulletin.to_bytes()
+            exchange="", routing_key=self._sessionid, body=bulletin.to_bytes()
         )
 
     def _register_proxy(self):
         self._channel.basic_consume(
             queue=self._sessionid,
             auto_ack=True,
-            on_message_callback=self._callbacks_proxy
+            on_message_callback=self._callbacks_proxy,
         )
 
     def _callbacks_proxy(self, ch, method, properties, body):
