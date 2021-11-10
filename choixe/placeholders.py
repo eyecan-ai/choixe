@@ -2,7 +2,6 @@ from enum import Enum, auto
 from typing import Union
 from choixe.directives import Directive, DirectiveConsumer, DirectiveFactory
 from choixe.importers import Importer, ImporterType
-from choixe.sweepers import Sweeper, SweeperType
 
 
 class PlaceholderType(Enum):

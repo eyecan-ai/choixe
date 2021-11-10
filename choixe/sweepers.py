@@ -2,7 +2,6 @@ from enum import Enum, auto
 from typing import Union
 from choixe.directives import (
     Directive,
-    DirectiveAT,
     DirectiveConsumer,
     DirectiveFactory,
 )

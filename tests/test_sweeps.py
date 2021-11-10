@@ -1,7 +1,4 @@
-import pytest
-from choixe.importers import Importer
 from choixe.configurations import XConfig
-from choixe.placeholders import Placeholder
 
 
 class TestSweeps:

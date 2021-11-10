@@ -1,8 +1,5 @@
 from choixe.configurations import XConfig
 import rich
-
-from choixe.placeholders import Placeholder
-from choixe.sweepers import Sweeper
 import tempfile
 from pathlib import Path
 
