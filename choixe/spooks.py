@@ -30,7 +30,8 @@ class Spook(metaclass=MetaSpook):
 
     @classmethod
     def spook_name(cls) -> str:
-        return cls.__name__
+        # return cls.__name__
+        return f"{cls.__module__}.{cls.__name__}"
 
     @classmethod
     def full_spook_schema(cls) -> Schema:
@@ -76,6 +77,21 @@ class Spook(metaclass=MetaSpook):
         return cls.from_dict(d[Spook.ARGS_FIELD])
 
     @classmethod
+    def dynamic_import(cls, full_name: str) -> typing.Any:
+        """Dynamic import of full qualified name (module....ClassName)
+
+        :param full_name: full qualified name
+        :type full_name: str
+        :return: imported class/function
+        :rtype: typing.Any
+        """
+        components = full_name.split(".")
+        mod = __import__(components[0])
+        for comp in components[1:]:
+            mod = getattr(mod, comp)
+        return mod
+
+    @classmethod
     def create(cls, d: dict, validate: bool = True) -> any:
         """Creates an object starting from its serialized dict.
         It must be a Spook serialized class containing all deserialization attributes
@@ -88,6 +104,16 @@ class Spook(metaclass=MetaSpook):
         :return: hydrated object
         :rtype: any
         """
+        if d[Spook.TYPE_FIELD] not in cls.SPOOKS_MAP:
+            try:
+                cls.SPOOKS_MAP[d[Spook.TYPE_FIELD]] = cls.dynamic_import(
+                    d[Spook.TYPE_FIELD]
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    f"SPOOK ALERT! Unable to import {d[Spook.TYPE_FIELD]} class: {e}"
+                )
+
         if d[Spook.TYPE_FIELD] in cls.SPOOKS_MAP:
             bt = cls.SPOOKS_MAP[d[Spook.TYPE_FIELD]]
             return bt.hydrate(d, validate=validate)
