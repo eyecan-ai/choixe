@@ -11,6 +11,7 @@ from pathlib import Path
 import copy
 
 from choixe.sweepers import Sweeper
+from choixe.utils import DictionaryWalker
 
 
 class XConfig(Box):
@@ -155,7 +156,10 @@ class XConfig(Box):
         (e.g. d['one']['two']['three'] -> ['one', 'two', 'three'] )
         :rtype: Sequence[Tuple[List[str], Any]]
         """
-        return self._walk(self, discard_private_qualifiers=discard_private_qualifiers)
+
+        return DictionaryWalker.flatten_as_lists(
+            self, discard_keys=self.PRIVATE_KEYS if discard_private_qualifiers else []
+        )
 
     def chunks_as_tuples(
         self, discard_private_qualifiers: bool = True
@@ -167,12 +171,10 @@ class XConfig(Box):
         (e.g. d['one']['two']['three'] -> ('one', 'two', 'three') )
         :rtype: Sequence[Tuple[Tuple[str, ...], Any]]
         """
-        return [
-            (tuple(x), y)
-            for x, y in self._walk(
-                self, discard_private_qualifiers=discard_private_qualifiers
-            )
-        ]
+
+        return DictionaryWalker.flatten_as_tuples(
+            self, discard_keys=self.PRIVATE_KEYS if discard_private_qualifiers else []
+        )
 
     def chunks(
         self, discard_private_qualifiers: bool = True
@@ -184,12 +186,9 @@ class XConfig(Box):
         :rtype: Sequence[Tuple[str, Any]]
         """
 
-        return [
-            (".".join(x), y)
-            for x, y in self.chunks_as_lists(
-                discard_private_qualifiers=discard_private_qualifiers
-            )
-        ]
+        return DictionaryWalker.flatten_as_dicts(
+            self, discard_keys=self.PRIVATE_KEYS if discard_private_qualifiers else []
+        )
 
     def is_a_placeholder(self, value: any) -> bool:
         """Checks if value is likely a placeholder
@@ -480,63 +479,10 @@ class XConfig(Box):
         cfg = XConfig(filename=None, plain_dict=d, **kwargs)
         return cfg
 
-    @classmethod
-    def _add_key_to_path(cls, key_to_add: any, path: Sequence[any]):
-        path.append(str(key_to_add))
+    def flatten(self) -> dict:
+        """Flatten version as dict
 
-    @classmethod
-    def _walk(
-        cls,
-        d: Dict,
-        path: Sequence = None,
-        chunks: Sequence = None,
-        discard_private_qualifiers: bool = True,
-    ) -> Sequence[Tuple[str, Any]]:
-        """Deep visit of dictionary building a plain sequence of pairs(key, value) where key has a pydash notation
-        : param d: input dictionary
-        : type d: Dict
-        : param path: private output value for path(not use), defaults to None
-        : type path: Sequence, optional
-        : param chunks: private output to be fileld with retrieved pairs(not use), defaults to None
-        : type chunks: Sequence, optional
-        : param discard_private_qualifiers: TRUE to discard keys starting with private qualifier, defaults to True
-        : type discard_private_qualifiers: bool, optional
-        : return: sequence of retrieved pairs
-        : rtype: Sequence[Tuple[str, Any]]
+        :return: flatten version
+        :rtype: dict
         """
-        root = False
-        if path is None:
-            path, chunks, root = [], [], True
-        if isinstance(d, dict):
-            for k, v in d.items():
-                cls._add_key_to_path(k, path)
-                if isinstance(v, dict) or isinstance(v, list):
-                    cls._walk(
-                        v,
-                        path=path,
-                        chunks=chunks,
-                        discard_private_qualifiers=discard_private_qualifiers,
-                    )
-                else:
-                    keys = list(map(str, path))
-                    if not (
-                        discard_private_qualifiers
-                        and any([x for x in cls.PRIVATE_KEYS if x in keys])
-                    ):
-                        chunks.append((keys, v))
-                path.pop()
-        elif isinstance(d, list):
-            for idx, v in enumerate(d):
-                cls._add_key_to_path(idx, path)
-                cls._walk(
-                    v,
-                    path=path,
-                    chunks=chunks,
-                    discard_private_qualifiers=discard_private_qualifiers,
-                )
-                path.pop()
-        else:
-            keys = list(map(str, path))
-            chunks.append((keys, d))
-        if root:
-            return chunks
+        return DictionaryWalker.flatten(self, discard_keys=self.PRIVATE_KEYS)
