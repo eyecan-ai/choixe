@@ -30,6 +30,7 @@ class PlaceholderGenerator:
         self, collection: Sequence, tp: str = None, others: Sequence = None
     ):
         args = [f"{self.base_name}{self.counter}"]
+        self.counter+=1
         if others is not None:
             args.extend(others)
         if tp is not None:
