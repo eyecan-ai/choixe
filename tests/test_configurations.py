@@ -124,9 +124,9 @@ def complex_data():
             },
             "env": [
                 pl_generator.create_placeholder(
-                    placeholders, "env"
+                    env_variables, "env"
                 ),  # env_variables[0],
-                pl_generator.create_placeholder(placeholders, "env"),
+                pl_generator.create_placeholder(env_variables, "env"),
             ],
             "key": {
                 "with": 120,
