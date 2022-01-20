@@ -111,3 +111,19 @@ class Placeholder(DirectiveConsumer):
         if directive:
             return Placeholder(directive=directive)
         return None
+
+    @classmethod
+    def is_a_placeholder(cls, value: any) -> bool:
+        """Checks if value is likely a placeholder
+
+        :param value: input value to check (e.g. '$hello')
+        :type value: any
+        :return: TRUE if value is a placeholder
+        :rtype: bool
+        """
+        if not isinstance(value, str):
+            return False
+        placeholder = Placeholder.from_string(value)
+        if placeholder:
+            return placeholder.is_valid()
+        return False

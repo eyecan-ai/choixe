@@ -1,18 +1,19 @@
 import os
 from choixe.directives import DirectiveAT
-from choixe.placeholders import Placeholder
 from typing import Sequence, Union
 import copy
 from box.box_list import BoxList
 import numpy as np
 from box.box import Box
 from deepdiff import DeepDiff
-from schema import Schema, Or, Regex, SchemaMissingKeyError, Use
-
+from schema import Schema, Or, Regex
+from choixe.configurations import SmartConfig, SmartConfigSweeperTransform
 import pydash
 from pathlib import Path
 import pytest
-from choixe.configurations import XConfig
+from schema import Schema, Or, Regex, SchemaMissingKeyError, Use
+from choixe.placeholders import Placeholder
+from choixe.utils import DictionaryWalker
 
 
 @pytest.fixture(scope="function")
@@ -172,7 +173,7 @@ def complex_data():
     )
 
     return {
-        "data": XConfig.decode(sample_dict),
+        "data": SmartConfig.decode(sample_dict),
         "schema": schema,
         "placeholders": placeholders,
         "environment_variables": env_variables,
@@ -189,17 +190,17 @@ def store_cfg(filename: Union[str, Path], d: dict):
     filename = str(filename)
     data = Box(d)
     if "yml" in filename or "yaml" in filename:
-        Box(XConfig.decode(data.to_dict())).to_yaml(filename)
+        Box(SmartConfig.decode(data.to_dict())).to_yaml(filename)
     if "json" in filename:
-        Box(XConfig.decode(data.to_dict())).to_json(filename)
+        Box(SmartConfig.decode(data.to_dict())).to_json(filename)
     if "toml" in filename:
-        Box(XConfig.decode(data.to_dict())).to_toml(filename)
+        Box(SmartConfig.decode(data.to_dict())).to_toml(filename)
 
 
 TESTABLE_ESTENSIONS = ["yaml", "json", "toml"]
 
 
-class TestXConfig(object):
+class TestSmartConfig(object):
     @pytest.mark.parametrize("cfg_extension", TESTABLE_ESTENSIONS)
     @pytest.mark.parametrize("data", data_to_test())
     def test_creation(
@@ -237,10 +238,10 @@ class TestXConfig(object):
             store_cfg(output_filename, d)
             saved_cfgs.append(output_filename)
 
-        yconf = XConfig(output_cfg_filename)
+        yconf = SmartConfig(output_cfg_filename)
         yconf.save_to(output_cfg_filename2)
 
-        yconf_reloaded = XConfig(output_cfg_filename2)
+        yconf_reloaded = SmartConfig(output_cfg_filename2)
 
         with pytest.raises(NotImplementedError):
             yconf.save_to(str(output_cfg_filename2) + "#IMPOSSIBLE.EXTENSION")
@@ -248,10 +249,10 @@ class TestXConfig(object):
         assert not DeepDiff(yconf.to_dict(), sample_dict)
         assert not DeepDiff(yconf_reloaded.to_dict(), sample_dict)
         assert not DeepDiff(
-            XConfig.from_dict(yconf_reloaded.to_dict()).to_dict(),
+            SmartConfig.from_dict(yconf_reloaded.to_dict()).to_dict(),
             yconf_reloaded.to_dict(),
         )
-        assert len(XConfig.from_dict(yconf_reloaded.to_dict())) > len(
+        assert len(SmartConfig.from_dict(yconf_reloaded.to_dict())) > len(
             sample_dict
         )  # YConf contains 2 more private keys!
 
@@ -259,7 +260,7 @@ class TestXConfig(object):
         saved_cfgs[0].unlink()
 
         with pytest.raises(OSError):
-            yconf = XConfig(output_cfg_filename)
+            yconf = SmartConfig(output_cfg_filename)
 
     @pytest.mark.parametrize("cfg_extension", TESTABLE_ESTENSIONS)
     @pytest.mark.parametrize("data", data_to_test())
@@ -297,12 +298,12 @@ class TestXConfig(object):
             store_cfg(output_filename, d)
             saved_cfgs.append(output_filename)
 
-        yconf = XConfig(output_cfg_filename)
+        yconf = SmartConfig(output_cfg_filename)
 
         assert DeepDiff(yconf.to_dict(), sample_dict)
 
 
-class TestXConfigReplace(object):
+class TestSmartConfigReplace(object):
     @pytest.mark.parametrize("data", data_to_test())
     def test_replace(self, generic_temp_folder, data):
 
@@ -310,7 +311,7 @@ class TestXConfigReplace(object):
         placeholders = data["placeholders"]  # , _, _, to_be_raplaced_keys = data
         environment_variables = data["environment_variables"]
 
-        conf = XConfig.from_dict(sample_dict)
+        conf = SmartConfig.from_dict(sample_dict)
 
         np.random.seed(66)
 
@@ -333,9 +334,10 @@ class TestXConfigReplace(object):
 
             with pytest.raises(SystemExit):
                 conf.check_available_placeholders(close_app=True)
+
             conf.replace_variables_map(to_replace)
 
-            chunks = conf.chunks_as_lists()
+            chunks = DictionaryWalker.flatten_as_lists(conf)
             for key, value in chunks:
                 if not isinstance(value, Box) and not isinstance(value, BoxList):
                     assert value not in to_replace.keys()
@@ -343,14 +345,15 @@ class TestXConfigReplace(object):
             assert len(conf.available_placeholders()) == len(environment_variables)
 
 
-class TestXConfigEnvironmentVariable(object):
+class TestSmartConfigEnvironmentVariable(object):
     @pytest.mark.parametrize("data", data_to_test())
     def test_env_variables(self, generic_temp_folder, data):
 
         sample_dict = data["data"]
         placeholders = data["placeholders"]  # , _, _, to_be_raplaced_keys = data
         environment_variables = data["environment_variables"]
-        conf = XConfig.from_dict(sample_dict)
+
+        conf = SmartConfig.from_dict(sample_dict)
         np.random.seed(66)
 
         assert len(conf.available_placeholders()) == len(placeholders) + len(
@@ -364,7 +367,7 @@ class TestXConfigEnvironmentVariable(object):
             ), f"this PYTEST needs no environment variable with name '{pl.name}' "
 
         # Load and parse environment variables but nobody set them!
-        conf = XConfig.from_dict(sample_dict, replace_environment_variables=True)
+        conf = SmartConfig.from_dict(sample_dict, replace_environment_variables=True)
         assert len(conf.available_placeholders()) == len(placeholders) + len(
             environment_variables
         )
@@ -374,7 +377,7 @@ class TestXConfigEnvironmentVariable(object):
             pl = Placeholder.from_string(envv)
             os.environ[pl.name] = str(np.random.uniform(0, 1, (1,)))
 
-        conf = XConfig.from_dict(sample_dict, replace_environment_variables=True)
+        conf = SmartConfig.from_dict(sample_dict, replace_environment_variables=True)
 
         import rich
 
@@ -386,14 +389,14 @@ class TestXConfigEnvironmentVariable(object):
             del os.environ[pl.name]
 
 
-class TestXConfigValidate(object):
+class TestSmartConfigValidate(object):
     @pytest.mark.parametrize("data", data_to_test())
     def test_validation(self, generic_temp_folder, data):
 
         sample_dict = data["data"]
         schema = data["schema"]  # , _, _, to_be_raplaced_keys = data
 
-        conf = XConfig.from_dict(sample_dict)
+        conf = SmartConfig.from_dict(sample_dict)
         conf.set_schema(schema)
 
         print(type(conf.get_schema()))
@@ -410,44 +413,52 @@ class TestXConfigValidate(object):
         assert not conf.is_valid()
 
 
-class TestXConfigCopy(object):
+class TestSmartConfigCopy(object):
     def test_copy(self, sample_configurations_data):
 
         for config in sample_configurations_data:
             filename = config["filename"]
-            xcfg = XConfig(filename=filename, no_deep_parse=True)
+            xcfg = SmartConfig(filename=filename, no_deep_parse=True)
             print("#" * 10)
             print(filename)
             print(xcfg)
             xcfg_copy = xcfg.copy()
-            xcfg_copy.deep_parse()
-            xcfg_correct = XConfig(filename=filename)
+
+            xcfg_copy.apply_transforms()
+            xcfg_correct = SmartConfig(filename=filename)
             assert not DeepDiff(xcfg_correct.to_dict(), xcfg_copy.to_dict())
             assert xcfg_copy == xcfg_correct
 
 
-class TestXConfigChunksView(object):
+class TestSmartConfigChunksView(object):
     def test_chunks_view(self, sample_configurations_data):
 
         for config in sample_configurations_data:
             filename = config["filename"]
-            xcfg = XConfig(filename=filename, no_deep_parse=True)
+            xcfg = SmartConfig(filename=filename, no_deep_parse=True)
 
-            assert len(xcfg.chunks_as_lists()) > 0
-            assert len(xcfg.chunks_as_lists()) == len(xcfg.chunks_as_tuples())
-            assert len(xcfg.chunks()) == len(xcfg.chunks_as_tuples())
+            cl = DictionaryWalker.flatten_as_lists(
+                xcfg, discard_keys=SmartConfig.PRIVATE_KEYS
+            )
+            ct = DictionaryWalker.flatten_as_tuples(
+                xcfg, discard_keys=SmartConfig.PRIVATE_KEYS
+            )
+            c = DictionaryWalker.flatten_as_dicts(
+                xcfg, discard_keys=SmartConfig.PRIVATE_KEYS
+            )
 
-            ls = xcfg.chunks_as_lists()
-            ts = xcfg.chunks_as_tuples()
+            assert len(cl) > 0
+            assert len(ct) == len(ct)
+            assert len(c) == len(ct)
 
-            for idx in range(len(ls)):
-                l, _ = ls[idx]
-                t, _ = ts[idx]
+            for idx in range(len(cl)):
+                l, _ = cl[idx]
+                t, _ = ct[idx]
                 for kidx in range(len(l)):
                     assert l[kidx] == t[kidx]
 
 
-class TestXConfigDeepSet(object):
+class TestSmartConfigDeepSet(object):
     def test_deepset(self):
 
         cfg = {
@@ -465,14 +476,14 @@ class TestXConfigDeepSet(object):
             },
         }
 
-        xcfg = XConfig.from_dict(cfg)
+        xcfg = SmartConfig.from_dict(cfg)
 
-        for k, old_value in xcfg.chunks_as_lists():
+        for k, old_value in xcfg.flatten_preserve_dotted_keys():
             row_dict = {}
             pydash.set_(row_dict, k, old_value)
 
-            xrow_dict = XConfig.from_dict(row_dict)
-            for newk, newv in xrow_dict.chunks_as_lists():
+            xrow_dict = SmartConfig.from_dict(row_dict)
+            for newk, newv in xrow_dict.flatten_preserve_dotted_keys():
 
                 # VALID KEYS
                 # Try to replace present keys only with ONLY_VALID_KEYS = TRUE, should be equal!
@@ -523,19 +534,23 @@ class TestXConfigDeepSet(object):
             "not_present_key": {"depth": {"alpha": "alpha"}},
         }
 
-        xcfg = XConfig.from_dict(cfg)
-        xcfg_to_replace = XConfig.from_dict(cfg_to_replace)
+        xcfg = SmartConfig.from_dict(cfg)
+        xcfg_to_replace = SmartConfig.from_dict(cfg_to_replace)
 
         # No Full merge
         new_cfg = xcfg.copy()
         new_cfg.deep_update(xcfg_to_replace, full_merge=False)
-        assert len(xcfg.chunks_as_lists()) == len(new_cfg.chunks_as_lists())
+        assert len(xcfg.flatten_preserve_dotted_keys()) == len(
+            new_cfg.flatten_preserve_dotted_keys()
+        )
         assert DeepDiff(xcfg.to_dict(), new_cfg.to_dict())
 
         # Full merge
         new_cfg = xcfg.copy()
         new_cfg.deep_update(xcfg_to_replace, full_merge=True)
-        assert len(xcfg.chunks_as_lists()) < len(new_cfg.chunks_as_lists())
+        assert len(xcfg.flatten_preserve_dotted_keys()) < len(
+            new_cfg.flatten_preserve_dotted_keys()
+        )
 
 
 class TestXConfigValidateWithReplace(object):
@@ -544,7 +559,7 @@ class TestXConfigValidateWithReplace(object):
         for replace in [True, False]:
             cfg = {"one": {"s0": "1", "s1": "22.2", "s2": "True"}}
 
-            conf = XConfig.from_dict(cfg)
+            conf = SmartConfig.from_dict(cfg)
 
             schema = Schema(
                 {
@@ -561,3 +576,43 @@ class TestXConfigValidateWithReplace(object):
             assert isinstance(conf.one.s0, int) == replace
             assert isinstance(conf.one.s1, float) == replace
             assert isinstance(conf.one.s2, bool) == replace
+
+
+class TestSweeps:
+    def _build_sweep(self, values):
+        return f"@sweep({','.join(map(str,values))})"
+
+    def test_sweeps(self):
+
+        ints = [1, 2, 3]
+        floats = [1.0, 2.0, 3.0]
+        strings = ['"a"', '"b"', '"c"']
+        bools = [True, False]
+
+        root_cfg = {
+            "first_level": 1,
+            "second": {
+                "ints": self._build_sweep(ints),
+                "floats": self._build_sweep(floats),
+                "strings": self._build_sweep(strings),
+                "bools": self._build_sweep(bools),
+            },
+        }
+
+        cfg = SmartConfig.from_dict(root_cfg)
+        assert len(cfg.available_placeholders()) == 4
+        sweeped_cfgs = SmartConfigSweeperTransform.sweep(cfg)
+
+        total = len(ints) * len(floats) * len(strings) * len(bools)
+        assert len(sweeped_cfgs) == total
+
+    def test_nosweeps(self):
+
+        root_cfg = {
+            "first_level": 1,
+            "second": {
+                "alpha": [1, 2, 3],
+            },
+        }
+        cfg = SmartConfig.from_dict(root_cfg)
+        assert len(SmartConfigSweeperTransform.sweep(cfg)) == 1
