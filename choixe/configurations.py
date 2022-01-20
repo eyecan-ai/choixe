@@ -532,7 +532,6 @@ class SmartConfigTransformer:
 
     def deep_parse_for_importers(self, cfg: "SmartConfig"):
 
-        cfg = cfg.copy()
         chunks = DictionaryWalker.flatten_as_lists(
             cfg, discard_keys=SmartConfig.PRIVATE_KEYS
         )
