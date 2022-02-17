@@ -255,14 +255,23 @@ class XConfig(Box):
                 if old_value == p.name:
                     pydash.set_(self, k, p.cast(new_value))
 
-    def replace_variables_map(self, m: dict):
+    def replace_variables_map(self, m: dict, replace_defaults: bool = False):
         """Replace target old variables with new values represented as dict
         :param m: dict of key/value = old/new
         :type m: dict
+        :param replace_defaults: TRUE to auto-replace default values remained
+        :type replace_defaults: bool
         """
 
         for old_v, new_v in m.items():
             self.replace_variable(old_v, new_v)
+
+        if replace_defaults:
+            placeholders = self.available_placeholders()
+            for key, p in placeholders.items():
+                # Replace default value if any
+                if p.default_value is not None:
+                    self.replace_variable(p.name, p.default_value)
 
     def deep_parse(self, replace_environment_variables: bool = False):
         """Deep visit of dictionary replacing filename values with a new XConfig object recusively
@@ -414,8 +423,14 @@ class XConfig(Box):
 
         return out_dict
 
-    def available_placeholders(self) -> Dict[str, Placeholder]:
+    def available_placeholders(
+        self,
+        ignore_defaults: bool = False,
+    ) -> Dict[str, Placeholder]:
         """Retrieves the available placeholders list
+
+        :param ignore_defaults: TRUE to ignore placeholders with default
+        :type: ignore_defaults: bool
 
         :return: list of found (str,str) pairs
         :rtype: Tuple[str,str]
@@ -426,17 +441,27 @@ class XConfig(Box):
         for k, v in chunks:
             if self.is_a_placeholder(v):
                 key = ".".join(k)
-                placeholders[key] = Placeholder.from_string(v)
+                placelholder = Placeholder.from_string(v)
+                if ignore_defaults and placelholder.default_value is not None:
+                    continue
+                placeholders[key] = placelholder
         return placeholders
 
-    def check_available_placeholders(self, close_app: bool = False) -> bool:
+    def check_available_placeholders(
+        self,
+        close_app: bool = False,
+        ignore_defaults: bool = False,
+    ) -> bool:
         """Check for available placeholder and close app if necessary
         :param close_app: TRUE to close app if at least one placeholder found, defaults to False
         :type close_app: bool, optional
+        :param ignore_defaults: TRUE to ignore placeholders with default
+        :type: ignore_defaults: bool
+
         :return: TRUE if no placeholders found
         :rtype: bool
         """
-        placeholders = self.available_placeholders()
+        placeholders = self.available_placeholders(ignore_defaults=ignore_defaults)
         if len(placeholders) > 0:
             import rich
             from rich.table import Table

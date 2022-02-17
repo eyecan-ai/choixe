@@ -1,4 +1,6 @@
 import os
+
+import rich
 from choixe.directives import DirectiveAT
 from choixe.placeholders import Placeholder
 from typing import Sequence, Union
@@ -30,6 +32,7 @@ class PlaceholderGenerator:
         self, collection: Sequence, tp: str = None, others: Sequence = None
     ):
         args = [f"{self.base_name}{self.counter}"]
+        self.counter += 1
         if others is not None:
             args.extend(others)
         if tp is not None:
@@ -123,9 +126,9 @@ def complex_data():
             },
             "env": [
                 pl_generator.create_placeholder(
-                    placeholders, "env"
+                    env_variables, "env"
                 ),  # env_variables[0],
-                pl_generator.create_placeholder(placeholders, "env"),
+                pl_generator.create_placeholder(env_variables, "env"),
             ],
             "key": {
                 "with": 120,
@@ -340,6 +343,42 @@ class TestXConfigReplace(object):
                     assert value not in to_replace.keys()
 
             assert len(conf.available_placeholders()) == len(environment_variables)
+
+    @pytest.mark.parametrize("data", data_to_test())
+    def test_replace_ignore_defaults(self, generic_temp_folder, data):
+
+        sample_dict = data["data"]
+        placeholders = data["placeholders"]  # , _, _, to_be_raplaced_keys = data
+        environment_variables = data["environment_variables"]
+
+        conf = XConfig.from_dict(sample_dict)
+        rich.print(conf)
+        np.random.seed(66)
+
+        to_replace = {}
+        to_replace_with_defaults = {}
+        for p in placeholders:
+            _p = Placeholder.from_string(p)
+            if _p.default_value is not None:
+                to_replace_with_defaults[_p.name] = np.random.randint(0, 10)
+            else:
+                to_replace[_p.name] = np.random.randint(0, 10)
+            rich.print("NAME", _p.name, _p.default_value is None)
+
+        defaults_placeholders_counter = len(conf.available_placeholders()) - len(
+            conf.available_placeholders(ignore_defaults=True)
+        )
+        assert defaults_placeholders_counter == len(to_replace_with_defaults)
+
+        if defaults_placeholders_counter > 0:
+            conf_copy_A = conf.copy()
+            conf_copy_A.replace_variables_map(to_replace, replace_defaults=False)
+            conf_copy_B = conf.copy()
+            conf_copy_B.replace_variables_map(to_replace, replace_defaults=True)
+
+            assert len(conf_copy_A.available_placeholders()) > len(
+                conf_copy_B.available_placeholders()
+            )
 
 
 class TestXConfigEnvironmentVariable(object):

@@ -1,7 +1,8 @@
 import rich
 import pytest
 from schema import Or, SchemaError
-from choixe.spooks import Spook
+from choixe.spooks import MetaSpook, Spook
+from pathlib import Path
 
 
 class SimpleUserObject__(Spook):
@@ -99,7 +100,6 @@ class TestSpookSimpleSerialization(object):
 
 class TestSpookCustomSerialization(object):
     def test_custom_serialization(self):
-
         items_list = [
             {"kwargs": {"a": 666, "b": "hello!", "c": True}, "valid": True},
             {"kwargs": {"a": "error!", "b": "hello!", "c": True}, "valid": False},
@@ -147,8 +147,45 @@ class TestSpookNestedSerialization(object):
                 "valid": False,
             },
         ]
+        for clear_factory in [True, False]:
+            for item in items_list:
+                kwargs = item["kwargs"]
+                valid = item["valid"]
 
-        for item in items_list:
+                o0 = CustomUserObject__(**kwargs["o0"])
+                o1 = CustomUserObject__(**kwargs["o1"])
+                name = kwargs["name"]
+
+                nested_0 = NestedUserObject_(name=name, o0=o0, o1=o1)
+
+                if valid:
+                    rep_0 = nested_0.serialize(validate=True)
+                    rich.print("Representaiton", rep_0)
+                    if clear_factory:
+                        MetaSpook.clear_factory()
+                    nested_1 = Spook.create(rep_0)
+                    assert nested_0 == nested_1
+                else:
+                    with pytest.raises(SchemaError):
+                        nested_0.serialize(validate=True)
+
+
+class TestSpookNestedSerializationToFile(object):
+    def test_nested_serialization(self, tmpdir):
+
+        item = {
+            "kwargs": {
+                "name": "n0",
+                "o0": {"a": 1, "b": "hello", "c": True},
+                "o1": {"a": 2, "b": "world!", "c": False},
+            },
+            "valid": True,
+        }
+
+        cfg_folder = Path(tmpdir.mkdir("cfg_golder"))
+        for ext in ["json", "yml"]:
+            cfg_file = cfg_folder / f"cfg.{ext}"
+
             kwargs = item["kwargs"]
             valid = item["valid"]
 
@@ -159,9 +196,8 @@ class TestSpookNestedSerialization(object):
             nested_0 = NestedUserObject_(name=name, o0=o0, o1=o1)
 
             if valid:
-                rep_0 = nested_0.serialize(validate=True)
-                rich.print("Representaiton", rep_0)
-                nested_1 = Spook.create(rep_0)
+                nested_0.serialize_to_file(str(cfg_file), validate=True)
+                nested_1 = Spook.create_from_file(str(cfg_file))
                 assert nested_0 == nested_1
             else:
                 with pytest.raises(SchemaError):
