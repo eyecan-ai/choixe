@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import Union
+from typing import Optional, Union
 from choixe.directives import Directive, DirectiveConsumer, DirectiveFactory
 from choixe.importers import Importer, ImporterType
 
@@ -85,7 +85,7 @@ class Placeholder(DirectiveConsumer):
         return []
 
     @property
-    def default_value(self):
+    def default_value(self) -> Optional[any]:
         if self.is_valid():
             return self._directive.default_value
         return None
